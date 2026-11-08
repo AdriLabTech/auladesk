@@ -19,7 +19,7 @@ pub fn derive_state(submission: Option<&str>, grading: Option<&str>, due_at: Opt
 #[derive(Serialize, sqlx::FromRow)]
 pub struct TaskRaw {
     pub id: i64, pub moodle_cmid: i64, pub course_id: i64, pub course_name: String, pub section_position: Option<i64>, pub section_name: Option<String>, pub name: String, pub url: Option<String>,
-    pub description: Option<String>, pub opens_at: Option<i64>, pub due_at: Option<i64>, pub priority: i64, pub favorite: i64, pub done_local: i64,
+    pub description: Option<String>, pub opens_at: Option<i64>, pub due_at: Option<i64>, pub priority: i64, pub favorite: i64, pub done_local: i64, pub local_status: String,
     pub submission_status: Option<String>, pub grading_status: Option<String>, pub grade: Option<String>, pub feedback: Option<String>, pub time_remaining_text: Option<String>,
     pub last_modified_at: Option<i64>, pub submitted_files_json: Option<String>, pub can_submit: Option<i64>, pub assign_synced_at: Option<i64>, pub last_synced_at: Option<i64>,
     pub local_files: i64, pub open_versions: i64, pub latest_version_state: Option<String>, pub note: Option<String>,
@@ -35,7 +35,7 @@ pub async fn task_list(st: State<'_, AppState>) -> AppResult<Vec<TaskRow>> { lis
 pub async fn list_tasks(pool: &sqlx::SqlitePool, now: i64) -> AppResult<Vec<TaskRow>> {
     let raws: Vec<TaskRaw> = sqlx::query_as(
         "SELECT a.id, a.moodle_cmid, a.course_id, c.fullname AS course_name, s.position AS section_position, s.name AS section_name, a.name, a.url, a.description,
-           a.opens_at, a.due_at, a.priority, a.favorite, a.done_local,
+           a.opens_at, a.due_at, a.priority, a.favorite, a.done_local, a.local_status,
            x.submission_status, x.grading_status, x.grade, x.feedback, x.time_remaining_text, x.last_modified_at, x.submitted_files_json, x.can_submit,
            x.last_synced_at AS assign_synced_at, a.last_synced_at, x.intro_text, x.intro_links_json, x.raw_rows_json, x.grader, x.graded_at,
            (SELECT count(*) FROM file_association f WHERE f.activity_id=a.id AND f.role IN ('statement','resource')) AS local_files,
@@ -52,10 +52,15 @@ pub async fn list_tasks(pool: &sqlx::SqlitePool, now: i64) -> AppResult<Vec<Task
 }
 
 #[tauri::command]
-pub async fn task_set_flags(st: State<'_, AppState>, activity_id: i64, priority: Option<i64>, favorite: Option<bool>, done_local: Option<bool>) -> AppResult<()> {
+pub async fn task_set_flags(st: State<'_, AppState>, activity_id: i64, priority: Option<i64>, favorite: Option<bool>, done_local: Option<bool>, local_status: Option<String>) -> AppResult<()> {
     if let Some(p) = priority { sqlx::query("UPDATE activity SET priority=? WHERE id=?").bind(p.clamp(0, 3)).bind(activity_id).execute(&st.pool).await?; }
     if let Some(f) = favorite { sqlx::query("UPDATE activity SET favorite=? WHERE id=?").bind(f as i64).bind(activity_id).execute(&st.pool).await?; }
     if let Some(d) = done_local { sqlx::query("UPDATE activity SET done_local=? WHERE id=?").bind(d as i64).bind(activity_id).execute(&st.pool).await?; }
+    // «none» (o cadena vacía) = quitar la columna personal y volver a la que marca el estado real.
+    if let Some(l) = local_status {
+        let v = match l.as_str() { "" | "none" => "none".to_string(), "todo" | "doing" => l, _ => return Err(crate::error::AppError::Other(format!("columna local no válida: {l}"))) };
+        sqlx::query("UPDATE activity SET local_status=? WHERE id=?").bind(v).bind(activity_id).execute(&st.pool).await?;
+    }
     Ok(())
 }
 

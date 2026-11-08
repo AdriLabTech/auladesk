@@ -76,27 +76,42 @@
         .map(([id, name]) => ({ id: String(id), title: name, color: `hsl(${hue(id)} 70% 55%)`, items: live.filter((t) => t.course_id === id).sort((a, b) => order[a.state] - order[b.state] || dueAsc(a, b)) }))
         .filter((c) => c.items.length);
     }
-    const defs: [string, string, string, (t: TaskRow) => boolean, (a: TaskRow, b: TaskRow) => number][] = [
-      ['late', 'Vencidas', 'red', (t) => t.state === 'fuera_de_plazo' && !stale(t), dueDesc],
-      ['todo', 'Por hacer', 'blue', (t) => t.state === 'pendiente', dueAsc],
-      ['doing', 'En curso', 'violet', (t) => t.state === 'iniciada' || t.state === 'preparada', dueAsc],
-      ['nodate', 'Sin fecha', 'muted', (t) => t.state === 'sin_fecha' || t.state === 'sin_sincronizar', (a, b) => a.name.localeCompare(b.name)],
-      ['sent', 'Entregadas', 'green', (t) => t.state === 'entregada', dueDesc],
-      ['graded', 'Evaluadas', 'teal', (t) => t.state === 'evaluada', dueDesc],
+    const defs: [string, string, string, string | undefined, (a: TaskRow, b: TaskRow) => number][] = [
+      ['late', 'Vencidas', 'red', undefined, dueDesc],
+      ['todo', 'Por hacer', 'blue', undefined, dueAsc],
+      ['doing', 'En curso', 'violet', undefined, dueAsc],
+      ['done', 'Hechas', 'amber', 'Marcadas por ti; no enviadas a Moodle', dueDesc],
+      ['nodate', 'Sin fecha', 'muted', undefined, (a, b) => a.name.localeCompare(b.name)],
+      ['sent', 'Entregadas', 'green', undefined, dueDesc],
+      ['graded', 'Evaluadas', 'teal', undefined, dueDesc],
     ];
-    const out: Col[] = defs.map(([id, title, tone, f, s]) => ({ id, title, color: `var(--c-${tone})`, items: live.filter(f).sort(s) }));
-    if (showStale) out.push({ id: 'stale', title: 'Antiguas', color: 'var(--c-muted)', hint: 'Vencidas hace más de 30 días', items: live.filter(stale).sort(dueDesc) });
+    const out: Col[] = defs.map(([id, title, tone, hint, s]) => ({ id, title, hint, color: `var(--c-${tone})`, items: live.filter((t) => stateCol(t) === id).sort(s) }));
+    if (showStale) out.push({ id: 'stale', title: 'Antiguas', color: 'var(--c-muted)', hint: 'Vencidas hace más de 30 días', items: live.filter((t) => stateCol(t) === 'stale').sort(dueDesc) });
     return out;
   });
+  // Columna del tablero por estado: lo que dice Moodle, salvo en tareas sin entregar, donde tu columna personal (local) manda.
+  const naturalCol = (t: TaskRow) => {
+    switch (t.state) {
+      case 'entregada': return 'sent';
+      case 'evaluada': return 'graded';
+      case 'iniciada': case 'preparada': return 'doing';
+      case 'pendiente': return 'todo';
+      case 'sin_fecha': case 'sin_sincronizar': return 'nodate';
+      default: return stale(t) ? 'stale' : 'late';
+    }
+  };
+  const movable = (t: TaskRow) => todoStates.includes(t.state);
+  const stateCol = (t: TaskRow) => movable(t) && t.done_local ? 'done' : movable(t) && (t.local_status === 'todo' || t.local_status === 'doing') ? t.local_status : naturalCol(t);
+  const dropCols = ['todo', 'doing', 'done'];
   const boardTotal = $derived(cols.reduce((n, c) => n + c.items.length, 0));
 
-  // Arrastre con eventos de puntero (HTML5 drag&drop no es fiable en todos los WebView). Solo en el tablero por prioridad.
+  // Arrastre con eventos de puntero (HTML5 drag&drop no es fiable en todos los WebView). Tablero por prioridad y, para tareas sin entregar, por estado (columna personal local).
   let drag = $state<{ t: TaskRow; x: number; y: number; w: number; over: string | null } | null>(null);
   let down: { t: TaskRow; sx: number; sy: number; w: number; ox: number; oy: number } | null = null;
   let justDragged = false;
   const colAt = (x: number, y: number) => (document.elementFromPoint(x, y)?.closest('[data-col]') as HTMLElement | null)?.dataset.col ?? null;
   function pdown(e: PointerEvent, t: TaskRow) {
-    if (by !== 'priority' || e.button !== 0) return;
+    if (e.button !== 0 || !(by === 'priority' || (by === 'state' && movable(t)))) return;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     down = { t, sx: e.clientX, sy: e.clientY, w: r.width, ox: e.clientX - r.left, oy: e.clientY - r.top };
     window.addEventListener('pointermove', pmove); window.addEventListener('pointerup', pup, { once: true }); window.addEventListener('pointercancel', pup, { once: true });
@@ -111,14 +126,19 @@
     const d = drag; down = null; drag = null;
     if (!d) return;
     justDragged = true; setTimeout(() => (justDragged = false), 0);
-    if (d.over !== null && Number(d.over) !== d.t.priority) await flag(d.t, { priority: Number(d.over) });
+    if (d.over === null) return;
+    if (by === 'priority') { if (Number(d.over) !== d.t.priority) await flag(d.t, { priority: Number(d.over) }); return; }
+    if (by !== 'state' || !dropCols.includes(d.over) || stateCol(d.t) === d.over) return;
+    // Si el destino es la columna natural de Moodle se borra la marca local; si no, se guarda tu columna.
+    if (d.over === 'done') await flag(d.t, { doneLocal: true, localStatus: '' });
+    else await flag(d.t, { doneLocal: false, localStatus: naturalCol(d.t) === d.over ? '' : (d.over as 'todo' | 'doing') });
   }
   const cardClick = (t: TaskRow) => { if (!justDragged) toggle(t); };
 
   // «Urgente» solo por fecha límite cercana y sin entregar; nunca porque la tarea sea reciente.
   const urgent = (t: TaskRow) => todoStates.includes(t.state) && t.seconds_to_due !== null && t.seconds_to_due >= 0 && t.seconds_to_due < 48 * 3600;
 
-  async function flag(t: TaskRow, f: { priority?: number; favorite?: boolean; doneLocal?: boolean }) { await taskSetFlags(t.id, f).catch((e) => (error = String(e))); await load(); }
+  async function flag(t: TaskRow, f: { priority?: number; favorite?: boolean; doneLocal?: boolean; localStatus?: '' | 'todo' | 'doing' }) { await taskSetFlags(t.id, f).catch((e) => (error = String(e))); await load(); }
   function toggle(t: TaskRow) { openId = openId === t.id ? null : t.id; error = ''; }
   const openTask = $derived(openId === null ? null : tasks.find((t) => t.id === openId) ?? null);
 </script>
@@ -201,12 +221,13 @@
 {:else}
   <p class="hint muted small">
     {#if by === 'priority'}Arrastra las tarjetas entre columnas para cambiar tu prioridad personal (se guarda solo en tu equipo).
-    {:else}Las columnas reflejan el estado real en Moodle, por eso no se pueden mover tarjetas. Pulsa una para ver su detalle.{/if}
+    {:else if by === 'state'}Arrastra las tareas sin entregar entre «Por hacer», «En curso» y «Hechas» para organizarte: se guarda solo en tu equipo y no cambia nada en Moodle. Entregadas y Evaluadas vienen de Moodle y no se mueven.
+    {:else}Las columnas reflejan la asignatura; para mover tarjetas usa el tablero por estado o por prioridad. Pulsa una para ver su detalle.{/if}
     · {boardTotal} {boardTotal === 1 ? 'tarea' : 'tareas'}
   </p>
   <div class="board" class:dragging={!!drag} role="list">
     {#each cols as c (c.id)}
-      <section class="col" class:over={drag?.over === c.id} data-col={by === 'priority' ? c.id : undefined} style="--t: {c.color}" role="listitem">
+      <section class="col" class:over={drag?.over === c.id} data-col={by === 'priority' || (by === 'state' && dropCols.includes(c.id)) ? c.id : undefined} style="--t: {c.color}" role="listitem">
         <header class="col-h"><i class="col-dot"></i><h2>{c.title}</h2><span class="col-n">{c.items.length}</span></header>
         {#if c.hint}<p class="col-hint muted small">{c.hint}</p>{/if}
         <div class="col-body">
@@ -217,7 +238,7 @@
               {@render cardBody(t)}
             </div>
           {:else}
-            <div class="col-empty">{by === 'priority' ? 'Suelta aquí una tarea' : 'Sin tareas'}</div>
+            <div class="col-empty">{by === 'priority' || (by === 'state' && dropCols.includes(c.id)) ? 'Suelta aquí una tarea' : 'Sin tareas'}</div>
           {/each}
         </div>
       </section>

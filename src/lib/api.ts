@@ -50,7 +50,7 @@ export const moodleForgetSession = () => invoke<void>('moodle_forget_session');
 export type TaskState = 'pendiente' | 'iniciada' | 'preparada' | 'entregada' | 'evaluada' | 'fuera_de_plazo' | 'sin_fecha' | 'sin_sincronizar';
 export interface TaskRow {
   id: number; moodle_cmid: number; course_id: number; course_name: string; section_position: number | null; section_name: string | null; name: string; url: string | null;
-  description: string | null; opens_at: number | null; due_at: number | null; priority: number; favorite: number; done_local: number;
+  description: string | null; opens_at: number | null; due_at: number | null; priority: number; favorite: number; done_local: number; local_status: string;
   submission_status: string | null; grading_status: string | null; grade: string | null; feedback: string | null; time_remaining_text: string | null;
   last_modified_at: number | null; submitted_files_json: string | null; can_submit: number | null; assign_synced_at: number | null; last_synced_at: number | null;
   local_files: number; open_versions: number; latest_version_state: string | null; note: string | null; state: TaskState; seconds_to_due: number | null;
@@ -62,7 +62,7 @@ export interface VersionRow {
   confirmation_evidence: string | null; grade: string | null; teacher_feedback: string | null; error_detail: string | null; deadline_at: number | null;
 }
 export const taskList = () => invoke<TaskRow[]>('task_list');
-export const taskSetFlags = (activityId: number, f: { priority?: number; favorite?: boolean; doneLocal?: boolean }) => invoke<void>('task_set_flags', { activityId, ...f });
+export const taskSetFlags = (activityId: number, f: { priority?: number; favorite?: boolean; doneLocal?: boolean; localStatus?: '' | 'todo' | 'doing' }) => invoke<void>('task_set_flags', { activityId, ...f });
 export const noteSet = (activityId: number, body: string) => invoke<void>('note_set', { activityId, body });
 export const submissionPrepare = (activityId: number, path: string) => invoke<VersionRow>('submission_prepare', { activityId, path });
 export const submissionHistory = (activityId?: number) => invoke<VersionRow[]>('submission_history', { activityId });
