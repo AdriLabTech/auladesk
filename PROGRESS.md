@@ -132,3 +132,8 @@ Sin token; extracción web. Versión 5.x por `apibase`. Detalle en MOODLE_INTEGR
 ## Entrega real verificada (2026-11-08)
 - Con el endurecimiento del paso «Subir el archivo» (espera + reintentos + detección multi-selector), la entrega desde la app **funcionó en el Moodle real** con una tarea real: la app la dio por confirmada (SHA-256) y el usuario la vio entregada en Moodle.
 - Verificado así: subida a una tarea SIN archivos previos, flujo guardar/enviar/verificar. Sigue sin verificar contra Moodle real: **reemplazar una entrega ya existente** (borrado de archivos anteriores) y tareas que exigen el paso extra «Enviar tarea».
+
+## Instaladores por GitHub Actions (2026-11-08)
+- Flujo `release.yml` ejecutado a mano (workflow_dispatch) y **correcto en las 4 plataformas** (Ubuntu, Windows, macOS Apple Silicon y macOS Intel): borrador de release `v0.1.0` con `.deb`, `.rpm`, `.AppImage`, `.msi`, instalador NSIS `.exe`, dos `.dmg` y los `.app.tar.gz`. Instaladores SIN firmar.
+- Primer intento fallido: `Missing export "openViewer"` en Windows/macOS. Causa: `../lib/viewer.svelte` se resolvía al componente `Viewer.svelte` en sistemas de ficheros sin distinción de mayúsculas. Arreglo: módulo renombrado a `viewerstate.svelte.ts`.
+- NO verificado: que los instaladores de Windows y macOS ARRANQUEN y funcionen (solo se sabe que compilan y empaquetan). Allí no hay notificaciones de escritorio ni servicio en segundo plano (`notify-send`/`systemd`), y el llavero y el WebView son los del sistema (sin probar).
