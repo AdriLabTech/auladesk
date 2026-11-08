@@ -35,6 +35,33 @@ pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> AppResult
 
 #[cfg(test)]
 mod tests {
+    /// Las migraciones ya aplicadas en bases de datos reales NO pueden cambiar ni un byte (sqlx compara checksums → VersionMismatch).
+    /// Si necesitas cambiar el esquema, añade una migración nueva; nunca edites una existente (ni un comentario).
+    #[test]
+    fn applied_migrations_are_frozen() {
+        use sha2::{Digest, Sha384};
+        let frozen = [
+            ("0001_init.sql", "8934ABD67C02B318"), ("0002_library.sql", "B7EF539029C6E19A"),
+            ("0003_assignments.sql", "61B0907B47F97D9C"), ("0004_calendar_notifications.sql", "0963BEC458883B6E"),
+        ];
+        for (name, prefix) in frozen {
+            let bytes = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations").join(name)).unwrap();
+            let h: String = Sha384::digest(&bytes).iter().map(|b| format!("{b:02X}")).collect();
+            assert!(h.starts_with(prefix), "{name} ha cambiado: rompería las bases de datos existentes");
+        }
+    }
+
+    /// Herramienta manual: `AULADESK_TEST_DB=/ruta/copia.db cargo test --lib opens_existing -- --ignored` abre una COPIA de una BD real y aplica las migraciones pendientes.
+    #[tokio::test]
+    #[ignore]
+    async fn opens_existing_database_copy() {
+        let p = std::env::var("AULADESK_TEST_DB").expect("define AULADESK_TEST_DB");
+        let pool = open(std::path::Path::new(&p)).await.expect("abrir y migrar la copia");
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations").fetch_one(&pool).await.unwrap();
+        println!("migraciones aplicadas: {n}");
+        assert!(n >= 5);
+    }
+
     use super::*;
 
     #[tokio::test]

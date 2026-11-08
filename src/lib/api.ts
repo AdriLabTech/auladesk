@@ -29,13 +29,14 @@ export interface FileRow {
   source_url: string | null; downloaded_at: number; sync_state: string; course_id: number | null; course_name: string | null;
   section_position: number | null; activity_id: number | null; activity_name: string | null; kind: string; exists: boolean;
 }
-export interface FileFilter { course_id?: number | null; kind?: string; q?: string; sort?: string; state?: string }
+export interface FileFilter { activity_id?: number | null; course_id?: number | null; kind?: string; q?: string; sort?: string; state?: string }
 export const downloadActivity = (activityId: number) => invoke<DownloadReport>('download_activity', { activityId });
 export const downloadCourse = (courseId: number, onlyMissing: boolean) => invoke<CourseDownloadReport>('download_course', { courseId, onlyMissing });
 export const courseCover = (courseId: number) => invoke<string | null>('course_cover', { courseId });
 export const listFiles = (filter: FileFilter) => invoke<FileRow[]>('list_files', { filter });
 export const listDuplicates = () => invoke<FileRow[][]>('list_duplicates');
 export const listFolders = () => invoke<string[]>('list_folders');
+export const fileRead = (id: number) => invoke<ArrayBuffer>('file_read', { id });
 export const fileOpen = (id: number) => invoke<void>('file_open', { id });
 export const fileReveal = (id: number) => invoke<void>('file_reveal', { id });
 export const fileRename = (id: number, newName: string) => invoke<string>('file_rename', { id, newName });
@@ -53,6 +54,7 @@ export interface TaskRow {
   submission_status: string | null; grading_status: string | null; grade: string | null; feedback: string | null; time_remaining_text: string | null;
   last_modified_at: number | null; submitted_files_json: string | null; can_submit: number | null; assign_synced_at: number | null; last_synced_at: number | null;
   local_files: number; open_versions: number; latest_version_state: string | null; note: string | null; state: TaskState; seconds_to_due: number | null;
+  intro_text: string | null; intro_links_json: string | null; raw_rows_json: string | null; grader: string | null; graded_at: number | null;
 }
 export interface VersionRow {
   id: number; submission_id: number; activity_id: number; activity_name: string; course_name: string; version: number; state: string;
@@ -104,3 +106,7 @@ export const dashboardData = () => invoke<DashboardData>('dashboard_data');
 
 export interface MoodleAccount { user_id: number | null; name: string | null }
 export const moodleAccount = () => invoke<MoodleAccount>('moodle_account');
+
+export interface AutoSyncStatus { enabled: boolean; minutes: number; last_at: number | null; last_ok: boolean | null; next_at: number | null; running: boolean; session_active: boolean; tray: boolean; close_to_tray: boolean }
+export const autosyncStatus = () => invoke<AutoSyncStatus>('autosync_status');
+export const submissionSubmit = (id: number, confirmed: boolean, replace = false) => invoke<VersionRow>('submission_submit', { id, confirmed, replace });

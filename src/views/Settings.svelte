@@ -4,6 +4,8 @@
   import { themes, radii, type RadiusId } from '../lib/themes';
   import { look, current, setPreset, setAccent, setRadius, setCalm, setWelcome } from '../lib/theme.svelte';
   import { nav } from '../lib/nav.svelte';
+  import { hero, saveHero, resetHero } from '../lib/herocfg.svelte';
+  import DashHero from '../lib/DashHero.svelte';
   import Icon from '../lib/Icon.svelte';
 
   let info = $state<AppInfo | null>(null);
@@ -38,6 +40,26 @@
       </button>
     {/each}
   </div>
+</section>
+
+<section class="card">
+  <h2>Cartel de bienvenida del Dashboard</h2>
+  <p class="muted">Vista previa en vivo con datos de ejemplo. Los textos admiten <code>{'{nombre}'}</code>, <code>{'{tareas}'}</code> y <code>{'{vencidas}'}</code>.</p>
+  <div class="hprev"><DashHero todo={4} overdue={1} topName="Entrega del proyecto" topReason="vence en 2 d" pct={65} lastSyncAt={Math.floor(Date.now() / 1000) - 600} preview /></div>
+  <div class="hgrid">
+    <label class="f">Título (vacío = saludo automático según la hora)<input maxlength="80" placeholder="Ej.: ¡A por ello, {'{nombre}'}!" bind:value={hero.title} oninput={saveHero} /></label>
+    <label class="f">Subtítulo (vacío = resumen automático)<input maxlength="200" placeholder="Ej.: Hoy tienes {'{tareas}'} cosas por hacer" bind:value={hero.subtitle} oninput={saveHero} /></label>
+  </div>
+  <div class="hsw">
+    <label class="chk2"><input type="checkbox" bind:checked={hero.date} onchange={saveHero} /> Fecha</label>
+    <label class="chk2"><input type="checkbox" bind:checked={hero.account} onchange={saveHero} /> Cuenta de Moodle</label>
+    <label class="chk2"><input type="checkbox" bind:checked={hero.summary} onchange={saveHero} /> Resumen automático</label>
+    <label class="chk2"><input type="checkbox" bind:checked={hero.ring} onchange={saveHero} /> Anillo de progreso</label>
+    <label class="chk2"><input type="checkbox" bind:checked={hero.actions} onchange={saveHero} /> Botones y estado</label>
+  </div>
+  <div class="opt"><div><b>Color del cartel</b><small class="muted">«Acento» usa el color del tema a lo grande; «Neutro» usa el fondo de panel.</small></div>
+    <div class="seg" role="group" aria-label="Color del cartel"><button class:on={hero.tone === 'accent'} onclick={() => { hero.tone = 'accent'; saveHero(); }}>Acento</button><button class:on={hero.tone === 'panel'} onclick={() => { hero.tone = 'panel'; saveHero(); }}>Neutro</button></div></div>
+  <button class="btn sm" onclick={resetHero}>Restablecer cartel</button>
 </section>
 
 <section class="card">
@@ -99,5 +121,7 @@
   .opt { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 0; border-top: 1px solid var(--line); flex-wrap: wrap; } .opt:first-of-type { margin-top: 10px; }
   .opt > div:first-child { display: flex; flex-direction: column; gap: 2px; max-width: 520px; } .opt small { font-size: 12.5px; }
   .ctl { display: flex; align-items: center; gap: 10px; }
+  .hprev { margin: 12px 0 14px; pointer-events: none; transform-origin: top left; } .hgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } @media (max-width: 800px) { .hgrid { grid-template-columns: 1fr; } }
+  .hsw { display: flex; gap: 8px 22px; flex-wrap: wrap; margin: 6px 0 4px; } .chk2 { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; }
   dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 14px; margin: 12px 0 14px; } dt { color: var(--muted); } dd { margin: 0; word-break: break-all; }
 </style>

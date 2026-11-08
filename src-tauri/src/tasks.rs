@@ -23,6 +23,7 @@ pub struct TaskRaw {
     pub submission_status: Option<String>, pub grading_status: Option<String>, pub grade: Option<String>, pub feedback: Option<String>, pub time_remaining_text: Option<String>,
     pub last_modified_at: Option<i64>, pub submitted_files_json: Option<String>, pub can_submit: Option<i64>, pub assign_synced_at: Option<i64>, pub last_synced_at: Option<i64>,
     pub local_files: i64, pub open_versions: i64, pub latest_version_state: Option<String>, pub note: Option<String>,
+    pub intro_text: Option<String>, pub intro_links_json: Option<String>, pub raw_rows_json: Option<String>, pub grader: Option<String>, pub graded_at: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -36,7 +37,7 @@ pub async fn list_tasks(pool: &sqlx::SqlitePool, now: i64) -> AppResult<Vec<Task
         "SELECT a.id, a.moodle_cmid, a.course_id, c.fullname AS course_name, s.position AS section_position, s.name AS section_name, a.name, a.url, a.description,
            a.opens_at, a.due_at, a.priority, a.favorite, a.done_local,
            x.submission_status, x.grading_status, x.grade, x.feedback, x.time_remaining_text, x.last_modified_at, x.submitted_files_json, x.can_submit,
-           x.last_synced_at AS assign_synced_at, a.last_synced_at,
+           x.last_synced_at AS assign_synced_at, a.last_synced_at, x.intro_text, x.intro_links_json, x.raw_rows_json, x.grader, x.graded_at,
            (SELECT count(*) FROM file_association f WHERE f.activity_id=a.id AND f.role IN ('statement','resource')) AS local_files,
            (SELECT count(*) FROM submission_version v JOIN submission su ON su.id=v.submission_id WHERE su.activity_id=a.id AND v.state IN ('prepared','in_progress','pending_confirmation')) AS open_versions,
            (SELECT v.state FROM submission_version v JOIN submission su ON su.id=v.submission_id WHERE su.activity_id=a.id ORDER BY v.id DESC LIMIT 1) AS latest_version_state,

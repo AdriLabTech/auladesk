@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { listCourses, courseTree, courseCover, downloadActivity, downloadCourse, type CourseRow, type ActivityRow } from '../lib/api';
+  import { listCourses, courseTree, courseCover, downloadActivity, downloadCourse, taskList, type CourseRow, type ActivityRow, type TaskRow } from '../lib/api';
+  import { stateInfo, fmtDue } from '../lib/format';
+  import TaskDrawer from '../lib/TaskDrawer.svelte';
   import { fmtDate, info, downloadable, hue } from '../lib/format';
   import { takeTarget } from '../lib/nav.svelte';
   import Icon from '../lib/Icon.svelte';
@@ -20,7 +22,14 @@
   let progress = $state<{ done: number; total: number; current: string | null } | null>(null);
   let unlisten: UnlistenFn[] = [];
 
+  // Tareas de Moodle por id de actividad: permiten abrir su detalle (descripción, entrega…) desde la propia asignatura
+  let courseTasks = $state<Record<number, TaskRow>>({});
+  let drawerId = $state<number | null>(null);
+  const drawerTask = $derived(drawerId === null ? null : courseTasks[drawerId] ?? null);
+  async function loadTasks() { try { courseTasks = Object.fromEntries((await taskList()).map((t) => [t.id, t])); } catch { /* sin datos aún */ } }
+  function openTask(id: number) { if (courseTasks[id]) drawerId = id; else error = 'Sincroniza en «Moodle / Conexión» para ver los detalles de esta tarea.'; }
   onMount(async () => {
+    loadTasks();
     unlisten.push(await listen<typeof progress>('download-progress', (e) => (progress = e.payload)));
     await reload();
     loaded = true;
@@ -37,7 +46,7 @@
       if (open) { open = courses.find((c) => c.id === open!.id) ?? null; if (open) items = await courseTree(open.id); }
     } catch (e) { error = String(e); }
   }
-  async function show(c: CourseRow) { open = c; items = []; filter = 'all'; query = ''; notice = ''; items = await courseTree(c.id).catch((e) => { error = String(e); return []; }); }
+  async function show(c: CourseRow) { loadTasks(); open = c; items = []; filter = 'all'; query = ''; notice = ''; items = await courseTree(c.id).catch((e) => { error = String(e); return []; }); }
 
   const matches = (r: ActivityRow) => {
     const okFilter = filter === 'all' || (filter === 'assign' && r.modname === 'assign') || (filter === 'files' && (r.modname === 'resource' || r.modname === 'folder')) || (filter === 'quiz' && r.modname === 'quiz') || (filter === 'forum' && r.modname === 'forum');
@@ -143,7 +152,17 @@
                     {@const m = info(r.modname)}
                     <li class="row" class:task={r.modname === 'assign'} class:text={r.modname === 'label'}>
                       <span class="ico tone-{m.tone}" title={m.label} aria-hidden="true"><Icon name={m.glyph} size={16} /></span>
-                      <div class="name"><span>{r.name}</span><small class="muted">{m.label}</small></div>
+                      {#if r.modname === 'assign'}
+                        {@const tk = courseTasks[r.id]}
+                        <button class="name namebtn" onclick={() => openTask(r.id)} title="Ver descripción, detalles y entregar">
+                          <span>{r.name}</span>
+                          <small class="muted">{m.label + (tk?.due_at ? ' · vence ' + fmtDue(tk.due_at) : '')}</small>
+                        </button>
+                        {#if tk}<span class="badge b-{stateInfo[tk.state].tone}">{stateInfo[tk.state].label}</span>{/if}
+                        <button class="btn sm primary" onclick={() => openTask(r.id)}>Detalle y entrega</button>
+                      {:else}
+                        <div class="name"><span>{r.name}</span><small class="muted">{m.label}</small></div>
+                      {/if}
                       {#if downloadable(r.modname)}
                         {#if r.files > 0}<span class="have" title="Ya está en tu biblioteca">✓ {r.files} descargado{r.files > 1 ? 's' : ''}</span>{/if}
                         <button class="btn sm" disabled={busy !== null} onclick={() => dl(r)}>{busy === r.id ? 'Descargando…' : r.files > 0 ? 'Actualizar' : 'Descargar'}</button>
@@ -180,6 +199,10 @@
     {/each}
   </div>
   </div>
+{/if}
+
+{#if drawerTask}
+  <TaskDrawer task={drawerTask} onClose={() => (drawerId = null)} onChange={async () => { await loadTasks(); await reload(); }} />
 {/if}
 
 <style>
@@ -227,6 +250,8 @@
   .row { display: flex; align-items: center; gap: 14px; padding: 10px 18px; border-top: 1px solid var(--line); transition: background .15s; } .row:first-child { border-top: 0; } .row:hover { background: var(--panel-2); }
   .row.task { background: color-mix(in srgb, var(--warn) 6%, transparent); } .row.task:hover { background: color-mix(in srgb, var(--warn) 11%, transparent); }
   .row.text .name span { color: var(--muted); font-style: italic; }
+  .namebtn { background: none; border: 0; text-align: left; padding: 2px 0; color: inherit; cursor: pointer; } .namebtn:hover span { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  .badge { --t: var(--t-badge, var(--c-muted)); } .b-green { --t-badge: var(--c-green); } .b-red { --t-badge: var(--c-red); } .b-teal { --t-badge: var(--c-teal); } .b-violet { --t-badge: var(--c-violet); } .b-blue { --t-badge: var(--c-blue); } .b-muted { --t-badge: var(--c-muted); }
   .name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; } .name span { overflow-wrap: anywhere; font-weight: 500; } .name small { font-size: 11.5px; }
   .have { font-size: 12px; color: var(--ok); white-space: nowrap; font-weight: 600; } .btn.sm { white-space: nowrap; }
 </style>

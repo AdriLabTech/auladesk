@@ -11,11 +11,53 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "title": "AulaDesk", "width": 1280, "height": 820, "minWidth": 900, "minHeight": 600 }
+      {
+        "label": "main",
+        "title": "AulaDesk",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 600
+      }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost"
     }
   },
-  "bundle": { "active": false }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "publisher": "AdriLabTech",
+    "copyright": "Copyright (c) 2026 AdriLabTech",
+    "license": "MIT",
+    "shortDescription": "Cliente de escritorio de solo lectura para plataformas Moodle",
+    "longDescription": "Tareas, fechas límite, archivos y avisos de Moodle en local, con entregas versionadas verificadas por SHA-256. No guarda contraseñas ni envía nada sin confirmación.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1"
+        ],
+        "recommends": [
+          "gnome-keyring"
+        ]
+      },
+      "rpm": {
+        "depends": [
+          "webkit2gtk4.1",
+          "gtk3",
+          "libayatana-appindicator-gtk3"
+        ]
+      }
+    }
+  }
 }

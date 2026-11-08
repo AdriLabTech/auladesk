@@ -139,17 +139,35 @@ pub struct AssignmentPayload {
     pub selector_version: String, pub cmid: Option<i64>, pub page_title: Option<String>, pub error: Option<String>,
     #[serde(default)] pub dates: Vec<String>, #[serde(default)] pub status_rows: Vec<Row>, #[serde(default)] pub grade_rows: Vec<Row>,
     #[serde(default)] pub files: Vec<SubFile>, #[serde(default)] pub can_add: bool, #[serde(default)] pub can_edit: bool,
+    #[serde(default)] pub intro_text: Option<String>, #[serde(default)] pub intro_links: Vec<IntroLink>,
 }
+
+#[derive(Debug, Clone, PartialEq, Deserialize, serde::Serialize)]
+pub struct IntroLink { pub name: String, pub url: String, #[serde(default)] pub file: bool }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
 pub struct SubmittedFile { pub name: String, pub url: String, pub modified_at: Option<i64> }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct AssignmentInfo {
     pub cmid: i64, pub opens_at: Option<i64>, pub due_at: Option<i64>,
     pub submission_status: Option<String>, pub grading_status: Option<String>, pub grade: Option<String>, pub feedback: Option<String>,
     pub graded_at: Option<i64>, pub grader: Option<String>, pub time_remaining: Option<String>, pub last_modified_at: Option<i64>,
     pub files: Vec<SubmittedFile>, pub can_submit: bool, pub raw_rows: String,
+    pub intro_text: Option<String>, pub intro_links: Vec<IntroLink>,
+}
+
+/// Texto de la página: sin caracteres de control (salvo saltos de línea) y acotado. Es dato no fiable: solo se muestra como texto.
+pub fn clean_text(raw: &str, max: usize) -> Option<String> {
+    let s: String = raw.chars().filter(|c| !c.is_control() || *c == '\n').collect::<String>().trim().to_string();
+    if s.is_empty() { None } else { Some(s.chars().take(max).collect()) }
+}
+
+/// Solo enlaces https; nombre acotado. El resto se descarta.
+pub fn clean_links(links: &[IntroLink]) -> Vec<IntroLink> {
+    let mut seen = std::collections::HashSet::new();
+    links.iter().filter(|l| l.url.starts_with("https://") && l.url.len() < 2000 && seen.insert(l.url.clone()))
+        .take(60).map(|l| IntroLink { name: clean_text(&l.name, 200).unwrap_or_else(|| l.url.clone()), url: l.url.clone(), file: l.file }).collect()
 }
 
 fn find<'a>(rows: &'a [Row], needle: &str) -> Option<&'a str> {
@@ -182,6 +200,7 @@ pub fn assignment(v: serde_json::Value) -> AppResult<AssignmentInfo> {
         graded_at: find(&p.grade_rows, "calificado sobre").and_then(|t| pd(t, TZ)),
         grader: find(&p.grade_rows, "calificado por").map(Into::into),
         files, can_submit: p.can_add || p.can_edit, raw_rows: raw.to_string(),
+        intro_text: p.intro_text.as_deref().and_then(|t| clean_text(t, 20_000)), intro_links: clean_links(&p.intro_links),
     })
 }
 
@@ -189,6 +208,15 @@ pub fn assignment(v: serde_json::Value) -> AppResult<AssignmentInfo> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn intro_is_sanitized_and_bounded() {
+        assert_eq!(clean_text("  Hola\u{0007}\nmundo  ", 100).as_deref(), Some("Hola\nmundo"));
+        assert_eq!(clean_text("   ", 10), None);
+        assert_eq!(clean_text(&"x".repeat(50), 10).unwrap().len(), 10);
+        let l = |u: &str| IntroLink { name: "n".into(), url: u.into(), file: false };
+        let out = clean_links(&[l("https://a/x"), l("javascript:alert(1)"), l("http://insegura"), l("https://a/x")]);
+        assert_eq!(out.len(), 1, "solo https y sin duplicados");
+    }
     #[test]
     fn rejects_unknown_selector_version_and_pages() {
         assert!(courses(json!({"selector_version":"v9","courses":[]})).is_err());

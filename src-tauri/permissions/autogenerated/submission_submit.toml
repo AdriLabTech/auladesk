@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-submission-submit"
+description = "Enables the submission_submit command without any pre-configured scope."
+commands.allow = ["submission_submit"]
+
+[[permission]]
+identifier = "deny-submission-submit"
+description = "Denies the submission_submit command without any pre-configured scope."
+commands.deny = ["submission_submit"]

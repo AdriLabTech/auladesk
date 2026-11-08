@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-autosync-status"
+description = "Enables the autosync_status command without any pre-configured scope."
+commands.allow = ["autosync_status"]
+
+[[permission]]
+identifier = "deny-autosync-status"
+description = "Denies the autosync_status command without any pre-configured scope."
+commands.deny = ["autosync_status"]

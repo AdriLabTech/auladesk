@@ -145,7 +145,32 @@
       return { name: text(a), url: a.href.split('#')[0], time_text: t };
     });
     const btns = [...document.querySelectorAll('#region-main .btn, #region-main button, #region-main a.btn')].map(text);
+    // Descripción de la tarea como TEXTO plano (listas con viñetas, saltos de línea) + sus enlaces. Nunca se envía HTML.
+    const introEl = document.querySelector('#intro') || document.querySelector('.activity-description');
+    const BLOCK = new Set(['P', 'DIV', 'UL', 'OL', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TABLE', 'TR', 'PRE', 'BLOCKQUOTE', 'SECTION', 'ARTICLE']);
+    const toText = (root) => {
+      const out = [];
+      const walk = (n) => {
+        if (n.nodeType === 3) { out.push(n.textContent.replace(/\s+/g, ' ')); return; }
+        if (n.nodeType !== 1) return;
+        const tag = n.tagName.toUpperCase();
+        if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'IMG'].includes(tag)) return;
+        if (tag === 'BR') { out.push('\n'); return; }
+        if (tag === 'LI') out.push('\n• '); else if (BLOCK.has(tag)) out.push('\n');
+        for (const c of n.childNodes) walk(c);
+        if (tag === 'TD' || tag === 'TH') out.push(' | ');
+        if (BLOCK.has(tag)) out.push('\n');
+      };
+      walk(root);
+      return out.join('').replace(/[ \t]+\n/g, '\n').replace(/ \| \n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    };
+    const intro_text = introEl ? toText(introEl).slice(0, 20000) : null;
+    const seenUrl = new Set();
+    const intro_links = [...new Set([...(introEl ? introEl.querySelectorAll('a[href]') : []), ...document.querySelectorAll('.introattachments a[href]')])]
+      .map((a) => ({ name: text(a) || a.href, url: a.href.split('#')[0], file: /\/pluginfile\.php\//.test(a.href) }))
+      .filter((l) => /^https:/.test(l.url) && !seenUrl.has(l.url) && seenUrl.add(l.url)).slice(0, 60);
     return send('assignment', {
+      intro_text, intro_links,
       selector_version: VERSION, cmid, page_title: title, dates,
       status_rows: rowsOf(table), grade_rows: rowsOf(document.querySelector('.feedback .feedbacktable')),
       files, can_add: btns.some((b) => /agregar entrega/i.test(b)), can_edit: btns.some((b) => /editar entrega/i.test(b)),
@@ -193,8 +218,106 @@
     return send('files', { selector_version: VERSION, files: [...found].map(([url, name]) => ({ url, name })) });
   }
 
+  // --- Entrega desde la app (solo se invoca tras la confirmación explícita del usuario, vía submission_submit) ---
+  // Cada etapa se detiene ante cualquier duda y avisa con submit_stage {ok:false}; nunca adivina ni reintenta a ciegas.
+  window.__mdSubmit = {
+    name: '', parts: [], replace: false,
+    begin(name, replace) { this.name = String(name || ''); this.parts = []; this.replace = replace === true; },
+    chunk(b64) { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); this.parts.push(u); },
+    file() { return new File(this.parts, this.name); },
+  };
+  // OJO: los formularios de Moodle llevan un <input name="action"> que pisa form.action: se lee siempre con getAttribute.
+  const inForm = (name, value) => [...document.querySelectorAll('form')].find((f) => /\/mod\/assign\/view\.php/.test(f.getAttribute('action') || '') && f.querySelector(`input[name="${name}"][value="${value}"]`));
+  async function submitStep(kind) {
+    const bad = (message) => send('submit_stage', { ok: false, stage: kind, message });
+    const done = (extra) => send('submit_stage', Object.assign({ ok: true, stage: kind }, extra || {}));
+    if (!/\/mod\/assign\/view\.php$/.test(location.pathname)) return bad('No estoy en una página de tarea de Moodle.');
+    if (kind === 'submit_stage') {
+      if (!/[?&]action=editsubmission/.test(location.search)) return bad('No estoy en la página de edición de la entrega.');
+      const fm = await waitFor(() => document.querySelector('.filemanager'), 15000);
+      if (!fm) return bad('No se encontró el selector de archivos de Moodle (¿entrega cerrada o de otro tipo?).');
+      const existing = () => [...fm.querySelectorAll('.fp-file')];
+      if (existing().length || fm.querySelector('.fp-filename')) {
+        if (!window.__mdSubmit.replace) return bad('La entrega ya contiene archivos. AulaDesk no los sustituye sin que lo pidas: bórralos en Moodle o usa «Reemplazar entrega».');
+        // Modificar entrega: se eliminan los archivos anteriores en el formulario. Nada se guarda hasta «Guardar cambios», así que parar aquí no cambia la entrega.
+        for (let guard = 0; existing().length && guard < 10; guard++) {
+          const before = existing().length, el = existing()[0];
+          (el.querySelector('a') || el).click();
+          const del = await waitFor(() => document.querySelector('.fp-file-delete'), 5000);
+          if (!del) return bad('No encontré cómo eliminar el archivo anterior de la entrega. No se ha cambiado nada.');
+          del.click();
+          const ok = await waitFor(() => document.querySelector('.fp-dlg-butconfirm'), 5000);
+          if (!ok) return bad('Moodle no pidió confirmar la eliminación del archivo anterior. No se ha cambiado nada.');
+          ok.click();
+          if (!(await waitFor(() => existing().length < before, 8000))) return bad('No se pudo eliminar el archivo anterior. No se ha cambiado nada.');
+        }
+        if (existing().length) return bad('No se pudieron eliminar todos los archivos anteriores. No se ha cambiado nada.');
+      }
+      const f = window.__mdSubmit.file();
+      if (!f || !f.size) return bad('El archivo no llegó a la página.');
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      // Pistas para afinar si Moodle usa otras clases: solo nombres de clase de la página, nunca contenido.
+      const diag = () => {
+        const cls = new Set();
+        document.querySelectorAll('[class*="file"],[class*="fp-"],[class*="dialog"],[class*="modal"]').forEach((n) => n.classList.forEach((c) => { if (/file|fp-|dialog|modal/i.test(c)) cls.add(c); }));
+        const a0 = fm.querySelector('.fp-btn-add');
+        return ` [diag: add=${a0 ? a0.outerHTML.slice(0, 140).replace(/\s+/g, ' ') : 'no'}; loading=${!!fm.classList.contains('fm-loading')}; clases=${[...cls].slice(0, 30).join(' ')}]`;
+      };
+      const PICKER = '.file-picker, .fp-generallayout, .filepicker, .fp-repo-area, .fp-content-area';
+      const findPicker = () => { const el = document.querySelector(PICKER); return el ? (el.closest('.file-picker, .filepicker, .moodle-dialogue-base, .modal') || el) : null; };
+      // El gestor de archivos de Moodle (YUI) engancha sus manejadores DESPUÉS de cargar la página: se espera y se reintenta el clic.
+      await waitFor(() => document.readyState === 'complete', 15000);
+      await sleep(1500);
+      let dlg = null;
+      for (let i = 0; i < 4 && !dlg; i++) {
+        dlg = findPicker();
+        if (dlg) break;
+        const add = fm.querySelector('.fp-btn-add a, .fp-btn-add button') || fm.querySelector('.fp-btn-add');
+        if (!add) return bad('No se encontró el botón «Agregar…».' + diag());
+        add.click();
+        dlg = await waitFor(findPicker, 4000);
+        if (!dlg) await sleep(1500);
+      }
+      if (!dlg) return bad('No se abrió el selector de archivos de Moodle.' + diag());
+      const scope = () => dlg.isConnected ? dlg : document;
+      const repo = [...scope().querySelectorAll('.fp-repo a, .fp-repo')].find((r) => /subir un archivo|upload a file/i.test(r.textContent));
+      if (repo) repo.click();
+      const input = await waitFor(() => scope().querySelector('.fp-upload-form input[type="file"]') || document.querySelector('.fp-upload-form input[type="file"]') || scope().querySelector('input[type="file"]'), 8000);
+      if (!input) return bad('No se encontró el campo de subida de Moodle.' + diag());
+      const dt = new DataTransfer(); dt.items.add(f); input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+      const btn = scope().querySelector('.fp-upload-btn') || document.querySelector('.fp-upload-btn') || (input.closest('form') && input.closest('form').querySelector('button, input[type="submit"]'));
+      if (!btn) return bad('No se encontró «Subir este archivo».' + diag());
+      btn.click();
+      const ok = await waitFor(() => [...fm.querySelectorAll('.fp-filename')].some((n) => text(n) === f.name), 90000);
+      if (!ok) return bad(text(document.querySelector('.fp-msg-error, .moodle-exception-message, .alert-danger')) || 'Moodle no confirmó la subida del archivo.');
+      return done();
+    }
+    if (kind === 'submit_save') {
+      const btn = document.querySelector('#id_submitbutton'), form = btn && btn.closest('form');
+      if (!btn || !form || !/\/mod\/assign\/view\.php/.test(form.getAttribute('action') || '')) return bad('No se encontró «Guardar cambios».');
+      if (!document.querySelector('.filemanager .fp-filename')) return bad('El archivo no está en el formulario de entrega.');
+      btn.click(); return;
+    }
+    if (kind === 'submit_final') {   // la tarea puede quedar en borrador: botón «Enviar tarea»
+      const f = inForm('action', 'submit');
+      if (!f) return done({ needs_final: false });
+      const b = f.querySelector('button[type="submit"], input[type="submit"]');
+      if (!b) return bad('Se vio el formulario de envío pero no su botón.');
+      b.click(); return;
+    }
+    if (kind === 'submit_confirm') {  // pantalla «¿Seguro que quiere enviar su trabajo?»
+      const f = inForm('action', 'confirmsubmit');
+      if (!f) return bad('No se encontró la pantalla de confirmación del envío.');
+      const b = f.querySelector('#id_submitbutton') || f.querySelector('button[type="submit"], input[type="submit"]');
+      if (!b) return bad('No se encontró el botón «Continuar» del envío.');
+      b.click(); return;
+    }
+    return bad('etapa desconocida');
+  }
+
   window.__mdRun = (kind) => {
     try {
+      if (kind.startsWith('submit_')) return submitStep(kind);
       if (kind === 'session') return reportSession();
       if (kind === 'courses') return courses();
       if (kind === 'contents') return contents();

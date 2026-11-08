@@ -4,6 +4,7 @@
   import { listFiles, listDuplicates, listCourses, listFolders, fileOpen, fileReveal, fileRename, fileMove, folderCreate, fileDelete, importFile, type FileRow, type CourseRow } from '../lib/api';
   import { fmtSize, fmtDate } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
+  import { openViewer } from '../lib/viewer.svelte';
 
   let files = $state<FileRow[]>([]);
   let courses = $state<CourseRow[]>([]);
@@ -98,6 +99,7 @@
           </div>
           <span class="muted nowrap">{fmtSize(f.size_bytes)}<br />{fmtDate(f.downloaded_at)}</span>
           <div class="acts">
+            <button class="btn sm primary" disabled={!f.exists} onclick={() => openViewer({ id: f.id, name: f.original_name })}>Ver</button>
             <button class="btn sm" disabled={!f.exists} onclick={() => act(() => fileOpen(f.id))}>Abrir</button>
             <button class="btn sm" disabled={!f.exists} onclick={() => act(() => fileReveal(f.id))}>Carpeta</button>
             <button class="btn sm" onclick={() => (editing = { id: f.id, mode: 'rename', value: f.local_name })}>Renombrar</button>

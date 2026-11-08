@@ -6,9 +6,10 @@ use tauri::State;
 pub struct AppInfo { version: &'static str, data_dir: String, db_path: String, session_type: Option<String>, schema_tables: i64 }
 
 /// Ajustes que la interfaz puede escribir. Cualquier clave nueva que guarde el frontend DEBE añadirse aquí (si no, se rechaza).
-pub const ALLOWED_SETTINGS: [&str; 11] = [
+pub const ALLOWED_SETTINGS: [&str; 15] = [
     "theme", "sidebar_collapsed", "moodle_base_url", "remember_session",
     "theme_id", "theme_accent", "theme_radius", "theme_calm", "welcome_enabled", "tasks_view", "tasks_board_by",
+    "autosync_enabled", "autosync_minutes", "close_to_tray", "welcome_config",
 ];
 
 #[tauri::command]
@@ -37,6 +38,7 @@ pub async fn set_setting(st: State<'_, AppState>, key: String, value: String) ->
     if key == "remember_session" && value == "0" {
         let _ = tauri::async_runtime::spawn_blocking(crate::session_store::forget).await;
     }
+    if key == "close_to_tray" { crate::autosync::CLOSE_TO_TRAY.store(value != "0", std::sync::atomic::Ordering::SeqCst); }
     db::set_setting(&st.pool, &key, &value).await
 }
 
@@ -152,6 +154,13 @@ pub async fn ingest_page(app: AppHandle, window: WebviewWindow, st: State<'_, Ap
                 }
             }
             finish(&st, res);
+        }
+        "submit_stage" => {
+            // Resultado de una etapa de la entrega automatizada: ok → siguiente etapa; error → se detiene y se explica.
+            let ok = payload.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+            let msg = payload.get("message").and_then(|v| v.as_str()).map(|s| s.chars().take(900).collect::<String>()).unwrap_or_else(|| "etapa de entrega fallida".into());
+            tracing::info!("entrega: etapa {} → {}", payload.get("stage").and_then(|v| v.as_str()).unwrap_or("?"), if ok { "ok" } else { "detenida" });
+            finish(&st, if ok { Ok(SyncStats::default()) } else { Err(msg) });
         }
         "files" => {
             let res = crate::moodle::mapper::files(payload).map_err(|e| e.to_string());
@@ -340,7 +349,7 @@ mod settings_tests {
     /// Claves de apariencia y vistas que el frontend persiste (lib/theme.svelte.ts, views/Tasks.svelte). Si falla, el ajuste no se guardaría.
     #[test]
     fn frontend_setting_keys_are_allowed() {
-        for k in ["theme_id", "theme_accent", "theme_radius", "theme_calm", "welcome_enabled", "tasks_view", "tasks_board_by", "sidebar_collapsed", "remember_session"] {
+        for k in ["theme_id", "theme_accent", "theme_radius", "theme_calm", "welcome_enabled", "tasks_view", "tasks_board_by", "sidebar_collapsed", "remember_session", "autosync_enabled", "autosync_minutes", "close_to_tray", "welcome_config"] {
             assert!(ALLOWED_SETTINGS.contains(&k), "{k} no está permitido");
         }
         // las claves de cuenta las escribe solo el backend: la interfaz no debe poder falsearlas

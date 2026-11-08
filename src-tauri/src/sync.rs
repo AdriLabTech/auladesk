@@ -122,13 +122,14 @@ pub async fn apply_assignment(pool: &SqlitePool, a: &crate::moodle::mapper::Assi
     sqlx::query("UPDATE activity SET opens_at=?, due_at=?, moodle_status=?, last_synced_at=? WHERE id=?")
         .bind(a.opens_at).bind(a.due_at).bind(&a.submission_status).bind(t).bind(id).execute(&mut *tx).await?;
     let files = serde_json::to_string(&a.files).unwrap_or_else(|_| "[]".into());
-    sqlx::query("INSERT INTO assignment(activity_id,submission_status,grading_status,grade,feedback,graded_at,grader,time_remaining_text,last_modified_at,submitted_files_json,can_submit,raw_rows_json,last_synced_at)
-                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+    sqlx::query("INSERT INTO assignment(activity_id,submission_status,grading_status,grade,feedback,graded_at,grader,time_remaining_text,last_modified_at,submitted_files_json,can_submit,raw_rows_json,last_synced_at,intro_text,intro_links_json)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                  ON CONFLICT(activity_id) DO UPDATE SET submission_status=excluded.submission_status, grading_status=excluded.grading_status, grade=excluded.grade, feedback=excluded.feedback,
                  graded_at=excluded.graded_at, grader=excluded.grader, time_remaining_text=excluded.time_remaining_text, last_modified_at=excluded.last_modified_at,
-                 submitted_files_json=excluded.submitted_files_json, can_submit=excluded.can_submit, raw_rows_json=excluded.raw_rows_json, last_synced_at=excluded.last_synced_at")
+                 submitted_files_json=excluded.submitted_files_json, can_submit=excluded.can_submit, raw_rows_json=excluded.raw_rows_json, last_synced_at=excluded.last_synced_at, intro_text=coalesce(excluded.intro_text,assignment.intro_text), intro_links_json=excluded.intro_links_json")
         .bind(id).bind(&a.submission_status).bind(&a.grading_status).bind(&a.grade).bind(&a.feedback).bind(a.graded_at).bind(&a.grader).bind(&a.time_remaining)
-        .bind(a.last_modified_at).bind(files).bind(a.can_submit as i64).bind(&a.raw_rows).bind(t).execute(&mut *tx).await?;
+        .bind(a.last_modified_at).bind(files).bind(a.can_submit as i64).bind(&a.raw_rows).bind(t)
+        .bind(&a.intro_text).bind(serde_json::to_string(&a.intro_links).unwrap_or_else(|_| "[]".into())).execute(&mut *tx).await?;
     // La nota/comentario de Moodle se refleja en la última versión confirmada de esa tarea.
     sqlx::query("UPDATE submission_version SET grade=coalesce(?,grade), teacher_feedback=coalesce(?,teacher_feedback)
                  WHERE state='confirmed' AND id=(SELECT v.id FROM submission_version v JOIN submission su ON su.id=v.submission_id WHERE su.activity_id=? AND v.state='confirmed' ORDER BY v.id DESC LIMIT 1)")
@@ -190,7 +191,7 @@ mod tests {
 
     fn info(cmid: i64, due: Option<i64>, status: &str) -> crate::moodle::mapper::AssignmentInfo {
         crate::moodle::mapper::AssignmentInfo { cmid, opens_at: Some(1000), due_at: due, submission_status: Some(status.into()), grading_status: None, grade: None, feedback: None,
-            graded_at: None, grader: None, time_remaining: None, last_modified_at: None, files: vec![], can_submit: true, raw_rows: "{}".into() }
+            graded_at: None, grader: None, time_remaining: None, last_modified_at: None, files: vec![], can_submit: true, raw_rows: "{}".into(), ..Default::default() }
     }
     #[tokio::test]
     async fn assignment_sync_is_idempotent_and_logs_date_changes() {

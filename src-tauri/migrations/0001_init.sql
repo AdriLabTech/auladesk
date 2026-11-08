@@ -1,4 +1,4 @@
--- AulaDesk esquema inicial. Fechas en UTC como epoch segundos (INTEGER).
+-- MoodleDesk esquema inicial. Fechas en UTC como epoch segundos (INTEGER).
 -- Cada fila sincronizada conserva el id original de Moodle (moodle_id) y metadatos de sync.
 PRAGMA foreign_keys = ON;
 

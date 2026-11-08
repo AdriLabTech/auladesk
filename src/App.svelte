@@ -5,6 +5,8 @@
   import { getSetting, setSetting, moodleStatus, notifUnreadCount } from './lib/api';
   import { loadTheme, look } from './lib/theme.svelte';
   import Welcome from './lib/Welcome.svelte';
+  import Viewer from './lib/Viewer.svelte';
+  import { loadHero } from './lib/herocfg.svelte';
   import { account, refreshAccount, initials } from './lib/account.svelte';
   import { listen } from '@tauri-apps/api/event';
   import Icon from './lib/Icon.svelte';
@@ -30,7 +32,7 @@
   async function refreshUnread() { try { unread = await notifUnreadCount(); } catch { /* sin BD aún */ } }
 
   onMount(() => {
-    loadTheme();
+    loadTheme(); loadHero();
     (async () => {
       try {
         collapsed = (await getSetting('sidebar_collapsed')) === '1';
@@ -124,6 +126,7 @@
   </main>
 </div>
 <Palette />
+<Viewer />
 {#if nav.welcome}<Welcome onDone={() => (nav.welcome = false)} />{/if}
 
 <style>

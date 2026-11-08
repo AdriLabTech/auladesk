@@ -208,7 +208,7 @@ pub fn kind_of(ext: &str) -> &'static str {
 }
 
 #[derive(Deserialize, Default)]
-pub struct FileFilter { pub course_id: Option<i64>, pub kind: Option<String>, pub q: Option<String>, pub sort: Option<String>, pub state: Option<String> }
+pub struct FileFilter { pub activity_id: Option<i64>, pub course_id: Option<i64>, pub kind: Option<String>, pub q: Option<String>, pub sort: Option<String>, pub state: Option<String> }
 
 const FILE_SELECT: &str = "SELECT l.id, l.original_name, l.local_name, l.rel_path, l.extension, l.size_bytes, l.sha256, l.source_url, l.downloaded_at, l.sync_state,
    (SELECT a.course_id FROM file_association a WHERE a.file_id=l.id ORDER BY a.id LIMIT 1) AS course_id,
@@ -229,7 +229,8 @@ pub async fn list_files(st: State<'_, AppState>, filter: FileFilter) -> AppResul
     let base: Vec<FileBase> = sqlx::query_as(&format!("{FILE_SELECT} ORDER BY {order}")).fetch_all(&st.pool).await?;
     let q = filter.q.as_deref().map(|s| s.to_lowercase()).filter(|s| !s.is_empty());
     let rows = to_rows(&st, base).into_iter().filter(|r| {
-        filter.course_id.map_or(true, |c| r.base.course_id == Some(c))
+        filter.activity_id.map_or(true, |a| r.base.activity_id == Some(a))
+            && filter.course_id.map_or(true, |c| r.base.course_id == Some(c))
             && filter.kind.as_deref().map_or(true, |k| k.is_empty() || r.kind == k)
             && filter.state.as_deref().map_or(true, |s| s.is_empty() || r.base.sync_state == s)
             && q.as_ref().map_or(true, |q| r.base.original_name.to_lowercase().contains(q) || r.base.rel_path.to_lowercase().contains(q) || r.base.activity_name.as_deref().unwrap_or("").to_lowercase().contains(q))
@@ -256,6 +257,18 @@ pub async fn file_open(app: AppHandle, st: State<'_, AppState>, id: i64) -> AppR
     let (p, _) = path_of(&st, id).await?;
     if !p.exists() { return Err(other("El archivo ya no está en disco.")); }
     app.opener().open_path(p.to_string_lossy(), None::<&str>).map_err(other)
+}
+
+/// Tamaño máximo que se envía al visor integrado; por encima se ofrece el visor del sistema.
+const VIEW_MAX: u64 = 80 * 1024 * 1024;
+
+/// Bytes de un archivo de la biblioteca para el visor. La ruta sale de la BD y pasa por `safe_join` (nunca una ruta que dé la interfaz).
+#[tauri::command]
+pub async fn file_read(st: State<'_, AppState>, id: i64) -> AppResult<tauri::ipc::Response> {
+    let (p, _) = path_of(&st, id).await?;
+    let len = tokio::fs::metadata(&p).await.map_err(|_| other("El archivo ya no está en disco."))?.len();
+    if len > VIEW_MAX { return Err(other("Archivo demasiado grande para el visor (máx. 80 MB). Ábrelo con el visor del sistema.")); }
+    Ok(tauri::ipc::Response::new(tokio::fs::read(&p).await.map_err(other)?))
 }
 
 #[tauri::command]

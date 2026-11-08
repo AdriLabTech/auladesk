@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { taskList, taskSetFlags, noteSet, downloadActivity, moodleOpen, moodleNavigate, getSetting, setSetting, type TaskRow, type TaskState } from '../lib/api';
+  import { taskList, taskSetFlags, noteSet, downloadActivity, moodleOpen, moodleNavigate, getSetting, setSetting, listFiles, type TaskRow, type TaskState, type FileRow } from '../lib/api';
   import { fmtDue, fmtRemaining, fmtDate, stateInfo, hue } from '../lib/format';
-  import Versions from './Versions.svelte';
+  import TaskDetail from './TaskDetail.svelte';
+  import TaskDrawer from '../lib/TaskDrawer.svelte';
   import Icon from '../lib/Icon.svelte';
   import { takeTarget } from '../lib/nav.svelte';
+  import { openViewer, kindOf } from '../lib/viewer.svelte';
+  import { fmtSize } from '../lib/format';
 
   type View = 'list' | 'board';
   type By = 'state' | 'course' | 'priority';
@@ -17,7 +20,6 @@
   let group = $state<'todo' | 'all' | 'done'>('todo');
   let courseId = $state(''); let q = $state(''); let sort = $state<'due' | 'priority' | 'course' | 'state'>('due');
   let openId = $state<number | null>(null);
-  let noteDraft = $state(''); let busy = $state<number | null>(null);
 
   const todoStates: TaskState[] = ['pendiente', 'iniciada', 'preparada', 'fuera_de_plazo', 'sin_fecha', 'sin_sincronizar'];
   const doneStates: TaskState[] = ['entregada', 'evaluada'];
@@ -117,50 +119,11 @@
   const urgent = (t: TaskRow) => todoStates.includes(t.state) && t.seconds_to_due !== null && t.seconds_to_due >= 0 && t.seconds_to_due < 48 * 3600;
 
   async function flag(t: TaskRow, f: { priority?: number; favorite?: boolean; doneLocal?: boolean }) { await taskSetFlags(t.id, f).catch((e) => (error = String(e))); await load(); }
-  function toggle(t: TaskRow) { openId = openId === t.id ? null : t.id; noteDraft = t.note ?? ''; notice = ''; error = ''; }
-  async function saveNote(t: TaskRow) { await noteSet(t.id, noteDraft).catch((e) => (error = String(e))); notice = 'Nota guardada'; await load(); }
-  async function dl(t: TaskRow) {
-    error = ''; notice = ''; busy = t.id;
-    try { const r = await downloadActivity(t.id); notice = `${r.stored.length} archivo(s) del enunciado${r.errors.length ? ' · ' + r.errors.join(' | ') : ''}`; await load(); }
-    catch (e) { error = String(e); } finally { busy = null; }
-  }
-  async function inMoodle(t: TaskRow) { try { await moodleOpen(); await moodleNavigate(`mod/assign/view.php?id=${t.moodle_cmid}`); } catch (e) { error = String(e); } }
-  const submittedFiles = (t: TaskRow): { name: string }[] => { try { return JSON.parse(t.submitted_files_json ?? '[]'); } catch { return []; } };
+  function toggle(t: TaskRow) { openId = openId === t.id ? null : t.id; error = ''; }
   const openTask = $derived(openId === null ? null : tasks.find((t) => t.id === openId) ?? null);
-  function onKey(e: KeyboardEvent) { if (e.key === 'Escape' && view === 'board' && openId !== null) openId = null; }
 </script>
 
-<svelte:window onkeydown={onKey} />
 
-{#snippet detail(t: TaskRow)}
-  {#if error}<p class="msg err" role="alert">{error}</p>{/if}
-  {#if notice}<p class="msg ok" role="status">{notice}</p>{/if}
-  <dl>
-    <dt>Estado en Moodle</dt><dd>{t.submission_status ?? '—'}{t.grading_status ? ` · ${t.grading_status}` : ''}</dd>
-    {#if t.time_remaining_text}<dt>Tiempo</dt><dd>{t.time_remaining_text}</dd>{/if}
-    <dt>Apertura</dt><dd>{t.opens_at ? fmtDate(t.opens_at) : '—'}</dd>
-    <dt>Fecha límite</dt><dd>{t.due_at ? fmtDate(t.due_at) : 'Sin fecha: no se inventa ninguna'}</dd>
-    {#if t.last_modified_at}<dt>Última modificación</dt><dd>{fmtDate(t.last_modified_at)}</dd>{/if}
-    {#if submittedFiles(t).length}<dt>Enviado</dt><dd>{submittedFiles(t).map((f) => f.name).join(', ')}</dd>{/if}
-    {#if t.feedback}<dt>Comentarios</dt><dd>{t.feedback}</dd>{/if}
-    <dt>Enunciado local</dt><dd>{t.local_files ? `${t.local_files} archivo(s) descargado(s)` : 'sin descargar'}</dd>
-  </dl>
-  <div class="prio-row"><span class="muted small">Prioridad personal</span>
-    <div class="seg" role="group" aria-label="Prioridad personal">{#each ['Ninguna', 'Baja', 'Media', 'Alta'] as l, i}<button class:on={t.priority === i} onclick={() => flag(t, { priority: i })}>{l}</button>{/each}</div>
-  </div>
-  <div class="acts">
-    <button class="btn sm" disabled={busy !== null} onclick={() => dl(t)}>{busy === t.id ? 'Descargando…' : 'Descargar enunciado'}</button>
-    <button class="btn sm" onclick={() => inMoodle(t)}>Ver en Moodle</button>
-    <button class="btn sm" onclick={() => flag(t, { favorite: !t.favorite })}>{t.favorite ? 'Quitar favorita' : 'Marcar favorita'}</button>
-    <button class="btn sm" onclick={() => flag(t, { doneLocal: !t.done_local })}>{t.done_local ? 'Desmarcar «hecha»' : 'Marcar «hecha» (solo local)'}</button>
-  </div>
-  <label class="note">Nota personal
-    <textarea rows="2" bind:value={noteDraft} placeholder="Solo en tu equipo, Moodle no la ve"></textarea>
-  </label>
-  <button class="btn sm" onclick={() => saveNote(t)}>Guardar nota</button>
-  <h3>Mi entrega</h3>
-  <Versions activityId={t.id} canPrepare={t.can_submit !== 0} onChange={load} />
-{/snippet}
 
 {#snippet cardBody(t: TaskRow)}
   {@const si = stateInfo[t.state]}
@@ -231,7 +194,7 @@
           <span class="badge b-{si.tone}">{stale(t) ? 'Antigua · sin entregar' : si.label}</span>
           {#if t.grade}<span class="grade" title="Calificación en Moodle">{t.grade}</span>{/if}
         </div>
-        {#if openId === t.id}<div class="detail">{@render detail(t)}</div>{/if}
+        {#if openId === t.id}<div class="detail"><TaskDetail {t} onChange={load} /></div>{/if}
       </li>
     {/each}
   </ul>
@@ -267,20 +230,7 @@
 {/if}
 
 {#if view === 'board' && openTask}
-  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" onclick={() => (openId = null)}></div>
-  <div class="drawer" role="dialog" tabindex="-1" aria-label={`Detalle: ${openTask.name}`}>
-    <header>
-      <div>
-        <span class="muted small">{openTask.course_name}{openTask.section_position !== null ? ` · ${openTask.section_position === 0 ? 'General' : 'Tema ' + openTask.section_position}` : ''}</span>
-        <h2>{openTask.name}</h2>
-        <span class="badge b-{stateInfo[openTask.state].tone}">{stale(openTask) ? 'Antigua · sin entregar' : stateInfo[openTask.state].label}</span>
-        {#if openTask.grade}<span class="grade">{openTask.grade}</span>{/if}
-      </div>
-      <button class="btn ghost icon" onclick={() => (openId = null)} aria-label="Cerrar detalle"><Icon name="x" size={18} /></button>
-    </header>
-    <div class="drawer-body">{@render detail(openTask)}</div>
-  </div>
+  <TaskDrawer task={openTask} onClose={() => (openId = null)} onChange={load} />
 {/if}
 
 <style>
@@ -307,13 +257,6 @@
   .task.stale { opacity: .55; } .task.stale:hover { opacity: .9; }
   .badge, .grade { justify-self: start; }
   @media (max-width: 900px) { .row { grid-template-columns: auto 1fr; } .due, .badge, .grade { grid-column: 2; justify-self: start; align-items: flex-start; } }
-
-  /* ── Detalle (lista y cajón) ── */
-  h3 { font-size: 13px; margin: 20px 0 8px; }
-  dl { display: grid; grid-template-columns: 150px 1fr; gap: 6px 14px; margin: 12px 0; font-size: 13.5px; } dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
-  .prio-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
-  .acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
-  .note { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); margin: 10px 0 8px; font-weight: 550; }
 
   /* ── Tablero ── */
   .board { display: flex; gap: 14px; overflow-x: auto; align-items: stretch; height: calc(100vh - 330px); min-height: 440px; padding: 2px 2px 12px; }
@@ -343,14 +286,4 @@
   .kc-foot { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; } .kc-foot:empty { display: none; }
   .kc-prio { color: var(--warn); font-size: 9px; letter-spacing: 2px; } .kc-files { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); margin-left: auto; }
   .kc .badge { font-size: 10.5px; padding: 1px 7px; } .kc .grade { font-size: 11px; padding: 1px 7px; }
-
-  /* ── Cajón de detalle ── */
-  .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .45); animation: fade .2s backwards; }
-  .drawer { position: fixed; z-index: 61; top: 0; right: 0; bottom: 0; width: min(580px, 94vw); display: flex; flex-direction: column; background: var(--panel-solid); border-left: 1px solid var(--line-strong); box-shadow: var(--shadow-lg); animation: slide .35s var(--ease) backwards; }
-  @keyframes slide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-  .drawer > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
-  .drawer > header > div { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 0; }
-  .drawer h2 { font-family: var(--font-display); font-size: 21px; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; }
-  .drawer-body { flex: 1; overflow-y: auto; padding: 4px 22px 28px; }
-  .drawer dl { grid-template-columns: 130px 1fr; }
 </style>

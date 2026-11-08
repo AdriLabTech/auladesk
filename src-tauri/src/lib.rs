@@ -1,6 +1,7 @@
 pub mod calendar;
 pub mod commands;
 pub mod dashboard;
+pub mod autosync;
 pub mod db;
 pub mod devctl;
 pub mod downloads;
@@ -44,20 +45,36 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(state::AppState { pool, data_dir, session: std::sync::Mutex::new(moodle::session::SessionState::Unknown),
             page_loads: tokio::sync::watch::channel(0u64).0, pending: std::sync::Mutex::new(None), dl: Default::default(), dl_name: Default::default(), dl_started: Default::default(), found_files: Default::default(), sync_running: Default::default() })
+        .on_window_event(|window, event| {
+            // Ventana principal: con bandeja disponible, cerrar la oculta (la app sigue sincronizando); sin ella, cierra la app (la ventana de Moodle está solo oculta).
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    if autosync::TRAY_OK.load(std::sync::atomic::Ordering::SeqCst) && autosync::CLOSE_TO_TRAY.load(std::sync::atomic::Ordering::SeqCst) { api.prevent_close(); let _ = window.hide(); }
+                    else { window.app_handle().exit(0); }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::app_info, commands::get_setting, commands::set_setting, commands::backup_database,
             commands::moodle_open, commands::moodle_close, commands::moodle_navigate,
-            commands::moodle_probe, commands::moodle_status, commands::moodle_account, commands::ingest_page,
+            commands::moodle_probe, autosync::autosync_status, commands::moodle_status, commands::moodle_account, commands::ingest_page,
             commands::moodle_forget_session, commands::moodle_sync, commands::list_courses, commands::course_tree,
             library::download_activity, library::download_course, library::course_cover, library::list_files, library::file_open,
-            library::file_reveal, library::file_rename, library::file_move, library::folder_create, library::file_delete,
+            library::file_reveal, library::file_read, library::file_rename, library::file_move, library::folder_create, library::file_delete,
             library::list_duplicates, library::list_folders, library::import_file,
             notif_cmds::calendar_list, notif_cmds::calendar_create, notif_cmds::calendar_update, notif_cmds::calendar_delete, notif_cmds::calendar_set_notes, notif_cmds::notif_list, notif_cmds::notif_mark_read, notif_cmds::notif_unread_count, notif_cmds::notif_settings_get, notif_cmds::notif_settings_set, notif_cmds::notif_test, notif_cmds::service_status, notif_cmds::service_install, notif_cmds::service_uninstall,
             dashboard::dashboard_data,
             tasks::task_list, tasks::task_set_flags, tasks::note_set,
-            submission_cmds::submission_prepare, submission_cmds::submission_history, submission_cmds::submission_cancel, submission_cmds::submission_start, submission_cmds::submission_verify
+            submission_cmds::submission_prepare, submission_cmds::submission_history, submission_cmds::submission_cancel, submission_cmds::submission_start, submission_cmds::submission_submit, submission_cmds::submission_verify
         ])
         .setup(|app| { let _ = app.get_webview_window("main");
+            // Sincronización automática + bandeja
+            let h_auto = app.handle().clone();
+            tauri::async_runtime::spawn(autosync::run_loop(h_auto));
+            let h_tray = app.handle().clone();
+            tauri::async_runtime::block_on(async { let st = h_tray.state::<state::AppState>();
+                autosync::CLOSE_TO_TRAY.store(db::get_setting(&st.pool, "close_to_tray").await.ok().flatten().as_deref() != Some("0"), std::sync::atomic::Ordering::SeqCst); });
+            autosync::build_tray(&h_tray);
             let dd = app.state::<state::AppState>().data_dir.clone();
             devctl::spawn(app.handle().clone(), dd.clone());
             // Avisos en segundo plano mientras la app está abierta (el servicio opcional hace lo mismo con la app cerrada; no se duplican).
