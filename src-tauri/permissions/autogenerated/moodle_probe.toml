@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-moodle-probe"
+description = "Enables the moodle_probe command without any pre-configured scope."
+commands.allow = ["moodle_probe"]
+
+[[permission]]
+identifier = "deny-moodle-probe"
+description = "Denies the moodle_probe command without any pre-configured scope."
+commands.deny = ["moodle_probe"]

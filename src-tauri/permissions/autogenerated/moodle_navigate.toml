@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-moodle-navigate"
+description = "Enables the moodle_navigate command without any pre-configured scope."
+commands.allow = ["moodle_navigate"]
+
+[[permission]]
+identifier = "deny-moodle-navigate"
+description = "Denies the moodle_navigate command without any pre-configured scope."
+commands.deny = ["moodle_navigate"]

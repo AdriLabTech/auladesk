@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-moodle-sync"
+description = "Enables the moodle_sync command without any pre-configured scope."
+commands.allow = ["moodle_sync"]
+
+[[permission]]
+identifier = "deny-moodle-sync"
+description = "Denies the moodle_sync command without any pre-configured scope."
+commands.deny = ["moodle_sync"]

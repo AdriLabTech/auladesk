@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-file-move"
+description = "Enables the file_move command without any pre-configured scope."
+commands.allow = ["file_move"]
+
+[[permission]]
+identifier = "deny-file-move"
+description = "Denies the file_move command without any pre-configured scope."
+commands.deny = ["file_move"]

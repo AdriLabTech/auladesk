@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-moodle-forget-session"
+description = "Enables the moodle_forget_session command without any pre-configured scope."
+commands.allow = ["moodle_forget_session"]
+
+[[permission]]
+identifier = "deny-moodle-forget-session"
+description = "Denies the moodle_forget_session command without any pre-configured scope."
+commands.deny = ["moodle_forget_session"]

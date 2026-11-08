@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-course-cover"
+description = "Enables the course_cover command without any pre-configured scope."
+commands.allow = ["course_cover"]
+
+[[permission]]
+identifier = "deny-course-cover"
+description = "Denies the course_cover command without any pre-configured scope."
+commands.deny = ["course_cover"]

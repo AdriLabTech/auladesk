@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-moodle-close"
+description = "Enables the moodle_close command without any pre-configured scope."
+commands.allow = ["moodle_close"]
+
+[[permission]]
+identifier = "deny-moodle-close"
+description = "Denies the moodle_close command without any pre-configured scope."
+commands.deny = ["moodle_close"]

@@ -1,0 +1,44 @@
+[package]
+name = "auladesk"
+version = "0.1.0"
+edition = "2021"
+description = "Cliente de escritorio para plataformas Moodle: tareas, entregas versionadas, archivos y avisos en local."
+license = "MIT"
+repository = "https://github.com/AdriLabTech/auladesk"
+
+[[bin]]
+name = "auladesk"
+path = "src/main.rs"
+
+[lib]
+name = "auladesk_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "chrono"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "time"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+directories = "6"
+chrono-tz = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+uuid = { version = "1", features = ["v4"] }
+async-trait = "0.1"
+percent-encoding = "2"
+base64 = "0.22"
+unicode-normalization = "0.1"
+keyring = { version = "3", features = ["sync-secret-service"] }
+
+[dev-dependencies]
+tempfile = "3"

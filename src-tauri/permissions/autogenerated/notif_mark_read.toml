@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notif-mark-read"
+description = "Enables the notif_mark_read command without any pre-configured scope."
+commands.allow = ["notif_mark_read"]
+
+[[permission]]
+identifier = "deny-notif-mark-read"
+description = "Denies the notif_mark_read command without any pre-configured scope."
+commands.deny = ["notif_mark_read"]

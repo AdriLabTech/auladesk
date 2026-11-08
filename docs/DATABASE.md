@@ -1,0 +1,2 @@
+# Base de datos
+Esquema en `src-tauri/migrations/0001_init.sql` (22 tablas, verificado con tests). Fechas UTC epoch. `moodle_id`/`cmid` originales con UNIQUE; `removed_at` en lugar de borrar; `last_synced_at`/`content_hash` para sync incremental. Archivos en disco, solo metadatos en SQLite (`local_file.sha256` indexado → duplicados). `submission_version`: triggers impiden DELETE y cambios de archivo/hash/versión. Reminders con UNIQUE (regla, objeto) para evitar duplicados. Backups: `VACUUM INTO` en `exports/`.

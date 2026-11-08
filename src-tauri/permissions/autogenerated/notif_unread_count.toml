@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notif-unread-count"
+description = "Enables the notif_unread_count command without any pre-configured scope."
+commands.allow = ["notif_unread_count"]
+
+[[permission]]
+identifier = "deny-notif-unread-count"
+description = "Denies the notif_unread_count command without any pre-configured scope."
+commands.deny = ["notif_unread_count"]

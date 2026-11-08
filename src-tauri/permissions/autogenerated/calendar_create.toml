@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-calendar-create"
+description = "Enables the calendar_create command without any pre-configured scope."
+commands.allow = ["calendar_create"]
+
+[[permission]]
+identifier = "deny-calendar-create"
+description = "Denies the calendar_create command without any pre-configured scope."
+commands.deny = ["calendar_create"]

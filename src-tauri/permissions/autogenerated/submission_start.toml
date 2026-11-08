@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-submission-start"
+description = "Enables the submission_start command without any pre-configured scope."
+commands.allow = ["submission_start"]
+
+[[permission]]
+identifier = "deny-submission-start"
+description = "Denies the submission_start command without any pre-configured scope."
+commands.deny = ["submission_start"]

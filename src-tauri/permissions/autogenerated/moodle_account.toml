@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-moodle-account"
+description = "Enables the moodle_account command without any pre-configured scope."
+commands.allow = ["moodle_account"]
+
+[[permission]]
+identifier = "deny-moodle-account"
+description = "Denies the moodle_account command without any pre-configured scope."
+commands.deny = ["moodle_account"]

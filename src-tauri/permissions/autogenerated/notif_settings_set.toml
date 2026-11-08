@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notif-settings-set"
+description = "Enables the notif_settings_set command without any pre-configured scope."
+commands.allow = ["notif_settings_set"]
+
+[[permission]]
+identifier = "deny-notif-settings-set"
+description = "Denies the notif_settings_set command without any pre-configured scope."
+commands.deny = ["notif_settings_set"]

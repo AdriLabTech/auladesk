@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-submission-cancel"
+description = "Enables the submission_cancel command without any pre-configured scope."
+commands.allow = ["submission_cancel"]
+
+[[permission]]
+identifier = "deny-submission-cancel"
+description = "Denies the submission_cancel command without any pre-configured scope."
+commands.deny = ["submission_cancel"]
