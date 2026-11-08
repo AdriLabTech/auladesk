@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { viewer, closeViewer, kindOf, type ViewKind } from './viewer.svelte';
+  import { viewer, closeViewer, kindOf, type ViewKind } from './viewerstate.svelte';
   import { fileRead, fileOpen, fileReveal } from './api';
   import { fmtSize } from './format';
   import Icon from './Icon.svelte';

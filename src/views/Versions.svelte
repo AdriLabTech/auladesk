@@ -5,7 +5,7 @@
   import { submissionHistory, submissionPrepare, submissionStart, submissionVerify, submissionCancel, submissionSubmit, fileReveal, fileOpen, type VersionRow } from '../lib/api';
   import { fmtDate, fmtSize, versionState } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
-  import { openViewer } from '../lib/viewer.svelte';
+  import { openViewer } from '../lib/viewerstate.svelte';
 
   let { activityId = undefined, canPrepare = false, hasSubmission = false, onChange = () => {} }: { activityId?: number; canPrepare?: boolean; hasSubmission?: boolean; onChange?: () => void | Promise<void> } = $props();
   let rows = $state<VersionRow[]>([]);

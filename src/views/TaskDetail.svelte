@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { taskSetFlags, noteSet, downloadActivity, moodleOpen, moodleNavigate, listFiles, type TaskRow, type FileRow } from '../lib/api';
   import { fmtDate, fmtSize } from '../lib/format';
-  import { openViewer, kindOf } from '../lib/viewer.svelte';
+  import { openViewer, kindOf } from '../lib/viewerstate.svelte';
   import Icon from '../lib/Icon.svelte';
   import Versions from './Versions.svelte';
 

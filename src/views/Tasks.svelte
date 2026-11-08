@@ -6,7 +6,7 @@
   import TaskDrawer from '../lib/TaskDrawer.svelte';
   import Icon from '../lib/Icon.svelte';
   import { takeTarget } from '../lib/nav.svelte';
-  import { openViewer, kindOf } from '../lib/viewer.svelte';
+  import { openViewer, kindOf } from '../lib/viewerstate.svelte';
   import { fmtSize } from '../lib/format';
 
   type View = 'list' | 'board';

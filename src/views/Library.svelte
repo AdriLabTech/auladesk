@@ -4,7 +4,7 @@
   import { listFiles, listDuplicates, listCourses, listFolders, fileOpen, fileReveal, fileRename, fileMove, folderCreate, fileDelete, importFile, type FileRow, type CourseRow } from '../lib/api';
   import { fmtSize, fmtDate } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
-  import { openViewer } from '../lib/viewer.svelte';
+  import { openViewer } from '../lib/viewerstate.svelte';
 
   let files = $state<FileRow[]>([]);
   let courses = $state<CourseRow[]>([]);
