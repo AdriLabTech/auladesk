@@ -19,7 +19,7 @@ pub fn spawn(app: AppHandle, data_dir: PathBuf) {
             for line in text.lines() {
                 let mut it = line.trim().splitn(2, ' ');
                 let (cmd, arg) = (it.next().unwrap_or(""), it.next().unwrap_or("").trim());
-                let w = app.get_webview_window(window::LABEL);
+                let w = window::get(&app);
                 match (cmd, w) {
                     ("open", _) => { let dd = data_dir.clone(); if let Err(e) = window::open(&app, &dd, true).await { tracing::warn!("devctl open: {e}"); } }
                     ("fetch", _) => {
@@ -47,7 +47,7 @@ pub fn spawn(app: AppHandle, data_dir: PathBuf) {
                             Ok(v) => tracing::info!("devctl verify: versión {} → {} | {}", v.id, v.state, v.confirmation_evidence.unwrap_or_default()),
                             Err(e) => tracing::warn!("devctl verify: {e}") }
                     }
-                    ("hide", Some(w)) => { let _ = w.hide(); }
+                    ("hide", _) => { window::set_visible(&app, false); }
                     ("wait", _) => tokio::time::sleep(Duration::from_secs(arg.parse().unwrap_or(1))).await,
                     ("nav", Some(w)) => match window::base_url().join(arg) {
                         Ok(u) if window::is_allowed(&u) => { let _ = w.navigate(u); tracing::info!("devctl nav {}", arg.split('?').next().unwrap_or("")); }

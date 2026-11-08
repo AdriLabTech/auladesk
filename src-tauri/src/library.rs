@@ -63,7 +63,7 @@ pub(crate) async fn await_download(rx: &mut tokio::sync::mpsc::UnboundedReceiver
 
 /// Espera a que el WebView esté realmente en la página pedida. Los eventos «página cargada» pueden llegar rezagados
 /// (p. ej. de la descarga anterior), así que tras cada uno se comprueba la URL actual.
-pub(crate) async fn wait_page(w: &tauri::WebviewWindow, loads: &mut tokio::sync::watch::Receiver<u64>, expect_path: &str, accept_file: bool) -> Result<(), String> {
+pub(crate) async fn wait_page(w: &tauri::Webview, loads: &mut tokio::sync::watch::Receiver<u64>, expect_path: &str, accept_file: bool) -> Result<(), String> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(45);
     loop {
         let left = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -78,7 +78,7 @@ pub(crate) async fn wait_page(w: &tauri::WebviewWindow, loads: &mut tokio::sync:
 
 async fn do_download_activity(app: &AppHandle, st: &AppState, activity_id: i64) -> Result<DownloadReport, String> {
     if *st.session.lock().unwrap() != SessionState::Active { return Err("No hay sesión de Moodle activa. Inicia sesión primero.".into()); }
-    let w = app.get_webview_window(window::LABEL).ok_or("La ventana de Moodle no está abierta: ábrela en «Moodle / Conexión» e inicia sesión.")?;
+    let w = window::get(&app).ok_or("La ventana de Moodle no está abierta: ábrela en «Moodle / Conexión» e inicia sesión.")?;
     let (url, modname): (Option<String>, String) = sqlx::query_as("SELECT url, modname FROM activity WHERE id=?").bind(activity_id).fetch_optional(&st.pool).await
         .map_err(|e| e.to_string())?.ok_or("Actividad desconocida")?;
     let url = url.ok_or("Esta actividad no tiene enlace")?;
@@ -365,7 +365,7 @@ pub async fn _unused(_: &SqlitePool) {}
 
 /// Descarga `url` con la sesión del WebView solo para calcular su SHA-256 (no se guarda en la biblioteca).
 pub async fn download_hash(app: &AppHandle, st: &AppState, url: &str) -> Result<(String, i64), String> {
-    let w = app.get_webview_window(window::LABEL).ok_or("La ventana de Moodle no está abierta.")?;
+    let w = window::get(&app).ok_or("La ventana de Moodle no está abierta.")?;
     let parsed = tauri::Url::parse(url).map_err(|e| e.to_string())?;
     if !window::is_allowed(&parsed) { return Err("URL fuera de Moodle".into()); }
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
@@ -382,7 +382,7 @@ pub async fn download_hash(app: &AppHandle, st: &AppState, url: &str) -> Result<
 
 /// Solo desarrollo: descarga una URL de Moodle y la guarda en «Sin_clasificar» (sin asociarla a ninguna actividad).
 pub async fn fetch_url(app: &AppHandle, st: &AppState, url: &str) -> Result<Stored, String> {
-    let w = app.get_webview_window(window::LABEL).ok_or("La ventana de Moodle no está abierta.")?;
+    let w = window::get(&app).ok_or("La ventana de Moodle no está abierta.")?;
     let parsed = tauri::Url::parse(url).map_err(|e| e.to_string())?;
     if !window::is_allowed(&parsed) { return Err("URL fuera de Moodle".into()); }
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();

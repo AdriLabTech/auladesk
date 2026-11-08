@@ -231,6 +231,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "directories",
+ "gtk",
  "keyring",
  "percent-encoding",
  "serde",

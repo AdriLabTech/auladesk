@@ -35,7 +35,7 @@ pub async fn submission_start(app: AppHandle, id: i64, confirmed: bool) -> Resul
     if can == Some(0) { return Err("Moodle no ofrece entregar esta tarea ahora (plazo cerrado o sin permiso). Sincroniza para actualizar su estado.".into()); }
     submissions::set_in_progress(&st.pool, id).await.map_err(|e| e.to_string())?;
     window::open(&app, &st.data_dir, true).await.map_err(|e| e.to_string())?;
-    let w = app.get_webview_window(window::LABEL).ok_or("La ventana de Moodle no está abierta.")?;
+    let w = window::get(&app).ok_or("La ventana de Moodle no está abierta.")?;
     let url = window::base_url().join(&format!("mod/assign/view.php?id={cmid}&action=editsubmission")).map_err(|e| e.to_string())?;
     w.navigate(url).map_err(|e| e.to_string())?;
     tracing::info!("proceso de entrega abierto para la versión {id}");
@@ -88,13 +88,13 @@ pub async fn submission_submit(app: AppHandle, id: i64, confirmed: bool, replace
     st.sync_running.store(false, Ordering::SeqCst);
     if let Err(e) = &r {
         tracing::warn!("entrega desde la app detenida: {e}");
-        if let Some(w) = app.get_webview_window(window::LABEL) { let _ = w.show(); }   // se deja Moodle a la vista para terminar a mano
+        window::set_visible(&app, true);   // se deja Moodle a la vista para terminar a mano
         progress(&app, "error", e);
     }
     r
 }
 
-async fn wait_load(w: &tauri::WebviewWindow, loads: &mut tokio::sync::watch::Receiver<u64>, rx: &mut tokio::sync::oneshot::Receiver<crate::state::IngestOutcome>, what: &str) -> Result<bool, String> {
+async fn wait_load(w: &tauri::Webview, loads: &mut tokio::sync::watch::Receiver<u64>, rx: &mut tokio::sync::oneshot::Receiver<crate::state::IngestOutcome>, what: &str) -> Result<bool, String> {
     // true = la página navegó; false = la etapa respondió «ok» sin navegar. Un fallo de la etapa llega como Err.
     let _ = w;
     tokio::select! {
@@ -123,7 +123,7 @@ async fn submit_inner(app: &AppHandle, st: &AppState, id: i64, replace: bool) ->
     // 2) Formulario oficial de entrega
     progress(app, "open", "Abriendo la entrega en Moodle…");
     window::open(app, &st.data_dir, false).await.map_err(|e| e.to_string())?;
-    let w = app.get_webview_window(window::LABEL).ok_or("La ventana de Moodle no está abierta.")?;
+    let w = window::get(&app).ok_or("La ventana de Moodle no está abierta.")?;
     let url = window::base_url().join(&format!("mod/assign/view.php?id={cmid}&action=editsubmission")).map_err(|e| e.to_string())?;
     let mut loads = st.page_loads.subscribe();
     loads.borrow_and_update();

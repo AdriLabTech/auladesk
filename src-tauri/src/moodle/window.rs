@@ -1,6 +1,10 @@
 //! Ventana de Moodle: WebView con almacén de cookies propio y persistente. Aquí no se leen ni copian cookies.
 use crate::error::{AppError, AppResult};
-use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::webview::{DownloadEvent, PageLoadPayload};
+use tauri::{AppHandle, Emitter, Manager, Url, Webview, WebviewUrl};
+
+#[cfg(target_os = "linux")]
+mod embedded;
 
 pub const LABEL: &str = "moodle";
 pub const DEFAULT_BASE: &str = "https://educacionadistancia.juntadeandalucia.es/centros/cordoba/";
@@ -20,7 +24,86 @@ pub fn is_allowed(u: &Url) -> bool {
     u.scheme() == "https" && u.host_str() == b.host_str() && u.path().starts_with(b.path())
 }
 
+/// Webview de Moodle (en Linux es un webview dentro de la ventana principal; en el resto, una ventana propia).
+pub fn get(app: &AppHandle) -> Option<Webview> { app.get_webview(LABEL) }
+
+/// Muestra u oculta Moodle. Oculto sigue cargando y sincronizando; visible es para iniciar sesión o terminar algo a mano.
+pub fn set_visible(app: &AppHandle, visible: bool) {
+    #[cfg(target_os = "linux")]
+    embedded::set_visible(app, visible);
+    #[cfg(not(target_os = "linux"))]
+    if let Some(w) = app.get_webview_window(LABEL) {
+        if visible { let _ = w.show(); let _ = w.set_focus(); } else { let _ = w.hide(); }
+    }
+}
+
+/// Cookies guardadas en el llavero, si el usuario no ha desactivado recordar la sesión.
+async fn saved_session(app: &AppHandle) -> Option<Vec<crate::session_store::StoredCookie>> {
+    let saved = tauri::async_runtime::spawn_blocking(crate::session_store::load).await.ok().flatten();
+    if saved.is_some() && remember_enabled(app).await { saved } else { None }
+}
+
+/// Con sesión guardada se carga about:blank, se restauran las cookies y entonces se navega a Moodle.
+fn restore_session(win: &Webview, cookies: &[crate::session_store::StoredCookie]) -> AppResult<()> {
+    for c in cookies {
+        if let Err(e) = win.set_cookie(crate::session_store::to_cookie(c)) { tracing::warn!("no se pudo restaurar una cookie: {e}"); }
+    }
+    tracing::info!("sesión guardada restaurada ({} cookies); comprobando con Moodle", cookies.len());
+    win.navigate(base_url().join("my/").map_err(|e| AppError::Other(e.to_string()))?).map_err(|e| AppError::Other(e.to_string()))
+}
+
+fn handle_download(app: &AppHandle, ev: DownloadEvent<'_>) -> bool {
+    match ev {
+        DownloadEvent::Requested { url, destination } => {
+            if !nav_allowed(&url) { tracing::warn!("descarga bloqueada fuera de Moodle: host={:?}", url.host_str()); return false; }
+            let st = app.state::<crate::state::AppState>();
+            *st.dl_name.lock().unwrap() = destination.file_name().map(|n| n.to_string_lossy().to_string());
+            st.dl_started.store(true, std::sync::atomic::Ordering::SeqCst);
+            let dir = st.data_dir.join("cache/downloads");
+            let _ = std::fs::create_dir_all(&dir);
+            *destination = dir.join(format!("{}.part", uuid::Uuid::new_v4()));
+            tracing::info!("descarga iniciada: {}{}", url.host_str().unwrap_or(""), url.path());
+            true
+        }
+        DownloadEvent::Finished { url, path, success } => {
+            tauri::async_runtime::spawn(crate::library::on_download_finished(app.clone(), url.to_string(), path, success));
+            true
+        }
+        _ => true,
+    }
+}
+
+fn handle_navigation(u: &Url) -> bool {
+    let ok = nav_allowed(u);
+    if !ok { tracing::warn!("navegación bloqueada fuera de Moodle: host={:?}", u.host_str()); }
+    ok
+}
+
+fn handle_title(t: &str) {
+    if t.starts_with("[mdbridge error") { tracing::warn!("puente: {}", t.split(']').next().unwrap_or("")); }
+}
+
+fn handle_load(app: &AppHandle, w: &Webview, p: &PageLoadPayload<'_>) {
+    // Solo host+ruta: nunca query ni fragmento (pueden llevar tokens).
+    let u = p.url();
+    tracing::info!("moodle página {:?}: {}{}", p.event(), u.host_str().unwrap_or(""), u.path());
+    let _ = app.emit("moodle-page", u.path().to_string());
+    if matches!(p.event(), tauri::webview::PageLoadEvent::Finished) {
+        app.state::<crate::state::AppState>().page_loads.send_modify(|n| *n += 1);
+        if is_allowed(u) { let _ = w.eval("window.__mdRun && window.__mdRun('session')"); }
+    }
+}
+
+/// Linux: Moodle es un webview dentro de la ventana principal (ver `embedded`), sin segunda ventana.
+#[cfg(target_os = "linux")]
 pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) -> AppResult<()> {
+    embedded::open(app, data_dir, visible).await
+}
+
+/// Resto de plataformas: ventana propia con almacén de cookies persistente.
+#[cfg(not(target_os = "linux"))]
+pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) -> AppResult<()> {
+    use tauri::WebviewWindowBuilder;
     if let Some(w) = app.get_webview_window(LABEL) {
         if !visible { return Ok(()); }
         w.show().map_err(|e| AppError::Other(e.to_string()))?;
@@ -29,10 +112,7 @@ pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) ->
     }
     let store = data_dir.join("webview");
     std::fs::create_dir_all(&store)?;
-    // Con sesión guardada se carga about:blank, se restauran las cookies y entonces se navega a Moodle.
-    let saved = if tauri::async_runtime::spawn_blocking(crate::session_store::load).await.ok().flatten().is_some() && remember_enabled(app).await {
-        tauri::async_runtime::spawn_blocking(crate::session_store::load).await.ok().flatten()
-    } else { None };
+    let saved = saved_session(app).await;
     let initial = if saved.is_some() { Url::parse("about:blank").unwrap() } else { base_url() };
     let emitter = app.clone();
     let dl_app = app.clone();
@@ -45,58 +125,13 @@ pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) ->
         .initialization_script(BRIDGE)
         // Sin esto, Tauri captura los archivos soltados sobre la ventana y la página de Moodle (selector de archivos de la entrega) nunca los recibe.
         .disable_drag_drop_handler()
-        .on_navigation(|u| {
-            let ok = nav_allowed(u);
-            if !ok { tracing::warn!("navegación bloqueada fuera de Moodle: host={:?}", u.host_str()); }
-            ok
-        })
-        .on_download(move |_w, ev| {
-            use tauri::webview::DownloadEvent;
-            match ev {
-                DownloadEvent::Requested { url, destination } => {
-                    if !nav_allowed(&url) { tracing::warn!("descarga bloqueada fuera de Moodle: host={:?}", url.host_str()); return false; }
-                    let st = dl_app.state::<crate::state::AppState>();
-                    *st.dl_name.lock().unwrap() = destination.file_name().map(|n| n.to_string_lossy().to_string());
-                    st.dl_started.store(true, std::sync::atomic::Ordering::SeqCst);
-                    let dir = st.data_dir.join("cache/downloads");
-                    let _ = std::fs::create_dir_all(&dir);
-                    *destination = dir.join(format!("{}.part", uuid::Uuid::new_v4()));
-                    tracing::info!("descarga iniciada: {}{}", url.host_str().unwrap_or(""), url.path());
-                    true
-                }
-                DownloadEvent::Finished { url, path, success } => {
-                    let app = dl_app.clone();
-                    tauri::async_runtime::spawn(crate::library::on_download_finished(app, url.to_string(), path, success));
-                    true
-                }
-                _ => true,
-            }
-        })
-        .on_document_title_changed(|_w, t| {
-            if t.starts_with("[mdbridge error") { tracing::warn!("puente: {}", t.split(']').next().unwrap_or("")); }
-        })
-        .on_page_load(move |w, p| {
-            // Solo host+ruta: nunca query ni fragmento (pueden llevar tokens).
-            let u = p.url();
-            tracing::info!("moodle página {:?}: {}{}", p.event(), u.host_str().unwrap_or(""), u.path());
-            let _ = emitter.emit("moodle-page", u.path().to_string());
-            if matches!(p.event(), tauri::webview::PageLoadEvent::Finished) {
-                emitter.state::<crate::state::AppState>().page_loads.send_modify(|n| *n += 1);
-            }
-            if matches!(p.event(), tauri::webview::PageLoadEvent::Finished) && is_allowed(u) {
-                let _ = w.eval("window.__mdRun && window.__mdRun('session')");
-            }
-        })
+        .on_navigation(handle_navigation)
+        .on_download(move |_w, ev| handle_download(&dl_app, ev))
+        .on_document_title_changed(|_w, t| handle_title(&t))
+        .on_page_load(move |w, p| handle_load(&emitter, w.as_ref(), &p))
         .build()
         .map_err(|e| AppError::Other(format!("no se pudo abrir Moodle: {e}")))?;
-    if let Some(cookies) = saved {
-        let n = cookies.len();
-        for c in &cookies {
-            if let Err(e) = win.set_cookie(crate::session_store::to_cookie(c)) { tracing::warn!("no se pudo restaurar una cookie: {e}"); }
-        }
-        tracing::info!("sesión guardada restaurada ({n} cookies); comprobando con Moodle");
-        win.navigate(base_url().join("my/").map_err(|e| AppError::Other(e.to_string()))?).map_err(|e| AppError::Other(e.to_string()))?;
-    }
+    if let Some(cookies) = saved { restore_session(win.as_ref(), &cookies)?; }
     // WebKit no renderiza las páginas dinámicas de Moodle en una ventana que nunca se ha mostrado: se muestra un instante y se oculta.
     if !visible {
         let w3 = win.clone();

@@ -137,3 +137,9 @@ Sin token; extracción web. Versión 5.x por `apibase`. Detalle en MOODLE_INTEGR
 - Flujo `release.yml` ejecutado a mano (workflow_dispatch) y **correcto en las 4 plataformas** (Ubuntu, Windows, macOS Apple Silicon y macOS Intel): borrador de release `v0.1.0` con `.deb`, `.rpm`, `.AppImage`, `.msi`, instalador NSIS `.exe`, dos `.dmg` y los `.app.tar.gz`. Instaladores SIN firmar.
 - Primer intento fallido: `Missing export "openViewer"` en Windows/macOS. Causa: `../lib/viewer.svelte` se resolvía al componente `Viewer.svelte` en sistemas de ficheros sin distinción de mayúsculas. Arreglo: módulo renombrado a `viewerstate.svelte.ts`.
 - NO verificado: que los instaladores de Windows y macOS ARRANQUEN y funcionen (solo se sabe que compilan y empaquetan). Allí no hay notificaciones de escritorio ni servicio en segundo plano (`notify-send`/`systemd`), y el llavero y el WebView son los del sistema (sin probar).
+
+## Moodle sin segunda ventana (Linux) — 2026-11-08
+- Antes: al arrancar con sesión guardada aparecía una ventana de Moodle 3-20 s y se cerraba (WebKit no pinta Moodle con el widget sin mapear: visibilityState «hidden», requestAnimationFrame parado, ancho 0).
+- Ahora (solo Linux, `src-tauri/src/moodle/window/embedded.rs`): Moodle es un webview hijo de la ventana principal, dentro de un `gtk::Layout` de 1×1 px y opacidad 0 (mapeado, viewport 1100×800). «Abrir Moodle»/entregas lo ponen a pantalla completa con la barra «← Volver a AulaDesk».
+- Windows/macOS conservan la ventana propia de antes (no probado allí que el nuevo diseño haga falta).
+- Verificado en Hyprland/Wayland con la sesión real: una sola ventana, sesión restaurada, sync completa en oculto (54 páginas, 9 cursos), modo visible y vuelta. NO verificado: pulsar el botón «Volver» con el ratón (se probó con `hide` de devctl, misma función), cambiar el tamaño de la ventana en modo visible, ventana principal oculta en la bandeja.

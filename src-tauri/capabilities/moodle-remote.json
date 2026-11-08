@@ -2,7 +2,18 @@
   "$schema": "../gen/schemas/remote-schema.json",
   "identifier": "moodle-remote-capability",
   "description": "Páginas de Moodle: un único comando (ingest_page), que valida todo en Rust.",
-  "windows": ["moodle"],
-  "remote": { "urls": ["https://educacionadistancia.juntadeandalucia.es/*"] },
-  "permissions": ["allow-ingest-page"]
+  "windows": [
+    "moodle"
+  ],
+  "remote": {
+    "urls": [
+      "https://educacionadistancia.juntadeandalucia.es/*"
+    ]
+  },
+  "permissions": [
+    "allow-ingest-page"
+  ],
+  "webviews": [
+    "moodle"
+  ]
 }

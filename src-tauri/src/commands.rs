@@ -53,7 +53,7 @@ pub async fn backup_database(st: State<'_, AppState>) -> AppResult<String> {
 
 // ---------- Moodle ----------
 use crate::moodle::{session::SessionState, window};
-use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Webview};
 
 #[tauri::command]
 pub async fn moodle_open(app: AppHandle, st: State<'_, AppState>) -> AppResult<()> {
@@ -62,7 +62,7 @@ pub async fn moodle_open(app: AppHandle, st: State<'_, AppState>) -> AppResult<(
 
 #[tauri::command]
 pub async fn moodle_close(app: AppHandle) -> AppResult<()> {
-    if let Some(w) = app.get_webview_window(window::LABEL) { w.hide().map_err(|e| crate::error::AppError::Other(e.to_string()))?; }
+    window::set_visible(&app, false);
     Ok(())
 }
 
@@ -70,7 +70,7 @@ pub async fn moodle_close(app: AppHandle) -> AppResult<()> {
 pub async fn moodle_navigate(app: AppHandle, path: String) -> AppResult<()> {
     let url = window::base_url().join(&path).map_err(|e| crate::error::AppError::Other(e.to_string()))?;
     if !window::is_allowed(&url) { return Err(crate::error::AppError::UnsafePath(path)); }
-    let w = app.get_webview_window(window::LABEL).ok_or_else(|| crate::error::AppError::Other("la ventana de Moodle no está abierta".into()))?;
+    let w = window::get(&app).ok_or_else(|| crate::error::AppError::Other("la ventana de Moodle no está abierta".into()))?;
     w.navigate(url).map_err(|e| crate::error::AppError::Other(e.to_string()))
 }
 
@@ -80,7 +80,7 @@ pub const PROBES: [&str; 9] = ["dom", "session", "courses", "contents", "files",
 #[tauri::command]
 pub async fn moodle_probe(app: AppHandle, kind: String) -> AppResult<()> {
     if !PROBES.contains(&kind.as_str()) { return Err(crate::error::AppError::Other(format!("probe no permitido: {kind}"))); }
-    let w = app.get_webview_window(window::LABEL).ok_or_else(|| crate::error::AppError::Other("la ventana de Moodle no está abierta".into()))?;
+    let w = window::get(&app).ok_or_else(|| crate::error::AppError::Other("la ventana de Moodle no está abierta".into()))?;
     w.eval(format!("window.__mdRun && window.__mdRun('{kind}')")).map_err(|e| crate::error::AppError::Other(e.to_string()))
 }
 
@@ -103,7 +103,7 @@ const MAX_PAYLOAD: usize = 4 * 1024 * 1024;
 
 /// Único comando accesible desde páginas de Moodle. Valida origen, tipo y tamaño; nunca ejecuta nada del payload.
 #[tauri::command]
-pub async fn ingest_page(app: AppHandle, window: WebviewWindow, st: State<'_, AppState>, kind: String, url: String, payload: serde_json::Value) -> AppResult<()> {
+pub async fn ingest_page(app: AppHandle, window: Webview, st: State<'_, AppState>, kind: String, url: String, payload: serde_json::Value) -> AppResult<()> {
     use crate::error::AppError;
     if window.label() != window::LABEL { return Err(AppError::Other("origen no autorizado".into())); }
     let parsed = tauri::Url::parse(&url).map_err(|e| AppError::Other(e.to_string()))?;
@@ -206,7 +206,7 @@ use std::time::Duration;
 pub async fn step_pub(app: &AppHandle, st: &AppState, path: &str, probe: &str) -> Result<SyncStats, String> { step(app, st, path, probe).await }
 
 async fn step(app: &AppHandle, st: &AppState, path: &str, probe: &str) -> Result<SyncStats, String> {
-    let w = app.get_webview_window(window::LABEL).ok_or("la ventana de Moodle no está abierta")?;
+    let w = window::get(&app).ok_or("la ventana de Moodle no está abierta")?;
     let url = window::base_url().join(path).map_err(|e| e.to_string())?;
     if !window::is_allowed(&url) { return Err("ruta fuera de Moodle".into()); }
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -313,7 +313,7 @@ pub async fn course_tree(st: State<'_, AppState>, course_id: i64) -> AppResult<V
 }
 
 /// Guarda en el llavero las cookies del WebView (solo dominios de la Junta) si el usuario no lo ha desactivado.
-async fn save_session(window: &WebviewWindow, st: &AppState) {
+async fn save_session(window: &Webview, st: &AppState) {
     if db::get_setting(&st.pool, "remember_session").await.ok().flatten().as_deref() == Some("0") { return; }
     let Ok(all) = window.cookies() else { return };
     let keep: Vec<_> = all.iter().filter(|c| crate::session_store::relevant(c.domain())).map(crate::session_store::to_stored).collect();
@@ -329,7 +329,7 @@ async fn save_session(window: &WebviewWindow, st: &AppState) {
 #[tauri::command]
 pub async fn moodle_forget_session(app: AppHandle, st: State<'_, AppState>) -> AppResult<()> {
     use crate::error::AppError;
-    if let Some(w) = app.get_webview_window(window::LABEL) {
+    if let Some(w) = window::get(&app) {
         let _ = w.eval("window.__mdRun && window.__mdRun('logout')");
         tokio::time::sleep(Duration::from_millis(1500)).await;
         if let Ok(cookies) = w.cookies() { for c in cookies.into_iter().filter(|c| crate::session_store::relevant(c.domain())) { let _ = w.delete_cookie(c); } }
