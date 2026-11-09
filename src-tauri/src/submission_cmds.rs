@@ -68,7 +68,7 @@ async fn verify_inner(app: &AppHandle, st: &AppState, id: i64) -> Result<Version
     if matches!(d, submissions::Decision::Confirmed(_)) {
         // Copia opcional en Drive de lo que Moodle acaba de confirmar (segundo plano; los errores solo se registran).
         let (a, fid) = (app.clone(), v.file_id);
-        tauri::async_runtime::spawn(async move { crate::drive::backup_confirmed_submission(&a, fid).await; });
+        tauri::async_runtime::spawn(async move { crate::drive::backup_confirmed_submission(&a, fid).await; crate::folder_backup::backup_confirmed_submission(&a, fid).await; });
     }
     crate::sync::log_history(&st.pool, "info", &format!("comprobación de entrega v{} → {}", v.version, if matches!(d, submissions::Decision::Confirmed(_)) { "confirmada" } else { "pendiente" }), Some("v1"), None).await;
     submissions::get(&st.pool, id).await.map_err(|e| e.to_string())

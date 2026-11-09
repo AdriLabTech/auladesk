@@ -74,10 +74,18 @@ struct TokenResp { access_token: String, expires_in: Option<i64>, refresh_token:
 
 static ACCESS: Mutex<Option<(String, i64)>> = Mutex::new(None);
 
+/// Cliente de Google del propio proyecto AulaDesk, fijado al compilar (`AULADESK_GOOGLE_CLIENT_ID` / `AULADESK_GOOGLE_CLIENT_SECRET`).
+/// En aplicaciones de escritorio Google no trata ese «secreto» como confidencial (con PKCE solo identifica a la app), por eso puede ir en el binario.
+/// Con él, el usuario solo pulsa «Conectar con Google»; sin él, hay que poner el cliente propio (modo avanzado).
+fn bundled_client() -> Option<(String, String)> {
+    let (id, secret) = (option_env!("AULADESK_GOOGLE_CLIENT_ID")?, option_env!("AULADESK_GOOGLE_CLIENT_SECRET")?);
+    (!id.is_empty() && !secret.is_empty()).then(|| (id.to_string(), secret.to_string()))
+}
+
+/// El cliente propio del usuario (ajuste + llavero) tiene prioridad sobre el integrado.
 fn client_pair(client_id: Option<String>) -> Result<(String, String), String> {
-    let id = client_id.filter(|s| !s.is_empty()).ok_or("Falta el ID de cliente de Google (Configuración de Drive).")?;
-    let secret = secret_get("client-secret").ok_or("Falta el secreto del cliente de Google.")?;
-    Ok((id, secret))
+    if let (Some(id), Some(secret)) = (client_id.filter(|s| !s.is_empty()), secret_get("client-secret")) { return Ok((id, secret)); }
+    bundled_client().ok_or_else(|| "Falta el ID de cliente de Google (Configuración de Drive).".to_string())
 }
 
 async fn token_post(http: &reqwest::Client, ep: &Endpoints, form: &[(&str, &str)]) -> Result<TokenResp, String> {
@@ -254,7 +262,7 @@ async fn upload_with_token(pool: &SqlitePool, files_root: &Path, ep: &Endpoints,
 
 // ───────────── Comandos ─────────────
 #[derive(Serialize)]
-pub struct DriveStatus { pub configured: bool, pub connected: bool, pub account: Option<String>, pub client_id: Option<String>, pub backup_submissions: bool, pub uploaded: i64 }
+pub struct DriveStatus { pub bundled: bool, pub configured: bool, pub connected: bool, pub account: Option<String>, pub client_id: Option<String>, pub backup_submissions: bool, pub uploaded: i64 }
 
 #[tauri::command]
 pub async fn drive_status(st: tauri::State<'_, AppState>) -> Result<DriveStatus, String> {
@@ -263,7 +271,7 @@ pub async fn drive_status(st: tauri::State<'_, AppState>) -> Result<DriveStatus,
     let account = crate::db::get_setting(&st.pool, "drive_account").await.ok().flatten().filter(|s| !s.is_empty());
     let backup = crate::db::get_setting(&st.pool, "drive_backup_submissions").await.ok().flatten().as_deref() == Some("1");
     let uploaded = sqlx::query_scalar("SELECT count(*) FROM drive_item").fetch_one(&st.pool).await.unwrap_or(0);
-    Ok(DriveStatus { configured: client_id.is_some() && has_secret, connected: has_refresh, account, client_id, backup_submissions: backup, uploaded })
+    Ok(DriveStatus { bundled: bundled_client().is_some(), configured: (client_id.is_some() && has_secret) || bundled_client().is_some(), connected: has_refresh, account, client_id, backup_submissions: backup, uploaded })
 }
 
 /// Guarda el ID de cliente (ajuste) y el secreto (llavero). El secreto nunca vuelve al frontend.
@@ -274,7 +282,8 @@ pub async fn drive_set_client(st: tauri::State<'_, AppState>, client_id: String,
     let secret = client_secret.trim().to_string();
     if secret.len() < 8 { return Err("El secreto del cliente no parece válido.".into()); }
     crate::db::set_setting(&st.pool, "drive_client_id", id).await.map_err(|e| e.to_string())?;
-    tauri::async_runtime::spawn_blocking(move || secret_set("client-secret", &secret)).await.map_err(|e| e.to_string())??;
+    tauri::async_runtime::spawn_blocking(move || { secret_del("refresh-token"); secret_set("client-secret", &secret) }).await.map_err(|e| e.to_string())??; // un token de otro cliente no sirve: hay que reconectar
+    *ACCESS.lock().unwrap() = None;
     Ok(())
 }
 
@@ -291,7 +300,7 @@ pub async fn drive_connect(app: AppHandle) -> Result<String, String> {
 pub async fn drive_disconnect(app: AppHandle, forget_client: Option<bool>) -> Result<(), String> {
     let st = app.state::<AppState>();
     disconnect(&st.pool, &Endpoints::default()).await;
-    if forget_client.unwrap_or(false) { secret_del("client-secret"); let _ = crate::db::set_setting(&st.pool, "drive_client_id", "").await; }
+    if forget_client.unwrap_or(false) { secret_del("client-secret"); secret_del("refresh-token"); let _ = crate::db::set_setting(&st.pool, "drive_client_id", "").await; }
     let _ = app.emit("drive-status", "disconnected");
     Ok(())
 }
@@ -358,6 +367,12 @@ pub async fn backup_confirmed_submission(app: &AppHandle, file_id: i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bundled_client_is_absent_unless_set_at_build_time() {
+        // En los tests no se define AULADESK_GOOGLE_CLIENT_ID: sin cliente integrado y sin cliente propio, el error debe decirlo.
+        if bundled_client().is_none() { assert!(client_pair(None).is_err()); }
+    }
 
     #[test]
     fn pkce_matches_rfc7636_example() {

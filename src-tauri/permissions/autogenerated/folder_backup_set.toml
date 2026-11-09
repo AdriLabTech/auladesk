@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-folder-backup-set"
+description = "Enables the folder_backup_set command without any pre-configured scope."
+commands.allow = ["folder_backup_set"]
+
+[[permission]]
+identifier = "deny-folder-backup-set"
+description = "Denies the folder_backup_set command without any pre-configured scope."
+commands.deny = ["folder_backup_set"]
