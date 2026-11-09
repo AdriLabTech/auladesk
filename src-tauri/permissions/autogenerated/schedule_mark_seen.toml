@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-schedule-mark-seen"
+description = "Enables the schedule_mark_seen command without any pre-configured scope."
+commands.allow = ["schedule_mark_seen"]
+
+[[permission]]
+identifier = "deny-schedule-mark-seen"
+description = "Denies the schedule_mark_seen command without any pre-configured scope."
+commands.deny = ["schedule_mark_seen"]

@@ -65,6 +65,11 @@ async fn verify_inner(app: &AppHandle, st: &AppState, id: i64) -> Result<Version
     for f in files.iter().take(10) { hashes.push((f.name.clone(), download_hash(app, st, &f.url).await?.0)); }
     let d = submissions::decide(&v.sha256, status.as_deref(), &hashes);
     submissions::apply_decision(&st.pool, id, &d, modified, grade.as_deref(), feedback.as_deref()).await.map_err(|e| e.to_string())?;
+    if matches!(d, submissions::Decision::Confirmed(_)) {
+        // Copia opcional en Drive de lo que Moodle acaba de confirmar (segundo plano; los errores solo se registran).
+        let (a, fid) = (app.clone(), v.file_id);
+        tauri::async_runtime::spawn(async move { crate::drive::backup_confirmed_submission(&a, fid).await; });
+    }
     crate::sync::log_history(&st.pool, "info", &format!("comprobación de entrega v{} → {}", v.version, if matches!(d, submissions::Decision::Confirmed(_)) { "confirmada" } else { "pendiente" }), Some("v1"), None).await;
     submissions::get(&st.pool, id).await.map_err(|e| e.to_string())
 }
@@ -81,15 +86,20 @@ fn progress(app: &AppHandle, stage: &str, text: &str) { let _ = tauri::Emitter::
 #[tauri::command]
 pub async fn submission_submit(app: AppHandle, id: i64, confirmed: bool, replace: Option<bool>) -> Result<VersionRow, String> {
     if !confirmed { return Err("Falta la confirmación explícita del usuario.".into()); }
+    submit_confirmed(&app, id, replace.unwrap_or(false)).await
+}
+
+/// Camino común de la entrega (la llama el comando tras la confirmación del usuario y el programador tras la confirmación guardada al programar).
+pub async fn submit_confirmed(app: &AppHandle, id: i64, replace: bool) -> Result<VersionRow, String> {
     let st = app.state::<AppState>();
     if *st.session.lock().unwrap() != SessionState::Active { return Err("No hay sesión de Moodle activa.".into()); }
     if st.sync_running.swap(true, Ordering::SeqCst) { return Err("Hay otra operación con Moodle en curso (sincronización o comprobación). Espera a que termine.".into()); }
-    let r = submit_inner(&app, &st, id, replace.unwrap_or(false)).await;
+    let r = submit_inner(app, &st, id, replace).await;
     st.sync_running.store(false, Ordering::SeqCst);
     if let Err(e) = &r {
         tracing::warn!("entrega desde la app detenida: {e}");
-        window::set_visible(&app, true);   // se deja Moodle a la vista para terminar a mano
-        progress(&app, "error", e);
+        window::set_visible(app, true);   // se deja Moodle a la vista para terminar a mano
+        progress(app, "error", e);
     }
     r
 }
