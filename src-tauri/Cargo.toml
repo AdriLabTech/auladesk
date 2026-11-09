@@ -1,6 +1,6 @@
 [package]
 name = "auladesk"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Cliente de escritorio para plataformas Moodle: tareas, entregas versionadas, archivos y avisos en local."
 license = "MIT"
@@ -23,7 +23,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite-unbundled", "migrate", "macros", "chrono"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros", "chrono"] }
 # SQLCipher (BD cifrada). Sustituye al SQLite incluido en sqlx; OpenSSL se compila dentro (sin dependencias del sistema).
 libsqlite3-sys = { version = "0.30", features = ["bundled-sqlcipher-vendored-openssl"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "time"] }
