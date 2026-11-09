@@ -2,13 +2,18 @@
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open as pickFile } from '@tauri-apps/plugin-dialog';
-  import { submissionHistory, submissionPrepare, submissionStart, submissionVerify, submissionCancel, submissionSubmit, fileReveal, fileOpen, type VersionRow } from '../lib/api';
+  import { submissionHistory, submissionPrepare, submissionStart, submissionVerify, submissionCancel, submissionSubmit, scheduleList, scheduleCancel, driveStatus, driveUploadFiles, fileReveal, fileOpen, type VersionRow, type ScheduleRow } from '../lib/api';
   import { fmtDate, fmtSize, versionState } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import { openViewer } from '../lib/viewerstate.svelte';
+  import ScheduleForm from '../lib/ScheduleForm.svelte';
 
   let { activityId = undefined, canPrepare = false, hasSubmission = false, onChange = () => {} }: { activityId?: number; canPrepare?: boolean; hasSubmission?: boolean; onChange?: () => void | Promise<void> } = $props();
   let rows = $state<VersionRow[]>([]);
+  let schedules = $state<ScheduleRow[]>([]);
+  let scheduling = $state<VersionRow | null>(null);
+  let driveOn = $state(false);
+  const schedOf = (v: VersionRow) => schedules.find((s) => s.version_id === v.id && ['scheduled', 'running'].includes(s.state));
   let error = $state(''); let notice = $state('');
   let busy = $state<number | 'prep' | null>(null);
   let confirmStart = $state<VersionRow | null>(null);
@@ -32,7 +37,10 @@
     await load(); onChange();
   }
 
-  async function load() { try { rows = await submissionHistory(activityId); } catch (e) { error = String(e); } }
+  async function load() { try { rows = await submissionHistory(activityId); schedules = await scheduleList(true); driveOn = (await driveStatus()).connected; } catch (e) { error = String(e); } }
+  async function toDrive(v: VersionRow) {
+    await run(v.id, async () => { const [r] = await driveUploadFiles([v.file_id]); if (r.status === 'error') throw new Error(r.detail ?? 'No se pudo subir a Drive'); }, 'Copia guardada en Google Drive.');
+  }
   onMount(load);
 
   async function run<T>(key: number | 'prep', f: () => Promise<T>, ok = '') {
@@ -68,13 +76,17 @@
     {#if v.sent_at}<p class="small">Moodle registra el envío: {fmtDate(v.sent_at)}{v.deadline_at ? ` · fecha límite ${fmtDate(v.deadline_at)}` : ''}</p>{/if}
     {#if v.confirmation_evidence}<p class="evid small">{v.confirmation_evidence}</p>{/if}
     {#if v.error_detail}<p class="small err-t">{v.error_detail}</p>{/if}
+    {#if schedOf(v)}{@const sc = schedOf(v)!}<p class="small sched"><Icon name="calendar" size={14} /> Entrega programada para <b>{fmtDate(sc.run_at)}</b>{sc.attempts ? ` · intento ${sc.attempts}` : ''}{sc.last_error ? ` · ${sc.last_error}` : ''}
+      {#if sc.state === 'scheduled'}<button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => scheduleCancel(sc.id), 'Programación cancelada.')}>Cancelar programación</button>{/if}</p>{/if}
     {#if v.grade}<p class="small">Calificación: <b>{v.grade}</b>{v.teacher_feedback ? ` · ${v.teacher_feedback}` : ''}</p>{/if}
     <div class="acts">
       <button class="btn sm" onclick={() => openViewer({ id: v.file_id, name: v.file_name })}>Ver copia</button>
       <button class="btn sm" onclick={() => fileOpen(v.file_id).catch((e) => (error = String(e)))}>Abrir con el sistema</button>
+      {#if driveOn}<button class="btn sm" disabled={busy !== null} onclick={() => toDrive(v)}>Guardar en Drive</button>{/if}
       <button class="btn sm" onclick={() => fileReveal(v.file_id).catch((e) => (error = String(e)))}>Mostrar carpeta</button>
       {#if open(v)}
         <button class="btn sm primary" disabled={busy !== null || subRun !== null} onclick={() => { agree = false; confirmSubmit = v; }}><Icon name="submissions" size={14} /> {hasSubmission ? 'Reemplazar entrega desde AulaDesk…' : 'Entregar desde AulaDesk…'}</button>
+        {#if !schedOf(v)}<button class="btn sm" disabled={busy !== null || subRun !== null} onclick={() => (scheduling = v)}>Programar entrega…</button>{/if}
         <button class="btn sm" disabled={busy !== null} onclick={() => (confirmStart = v)}>Entregar a mano en Moodle…</button>
         <button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => submissionVerify(v.id), 'Comprobación terminada: revisa el estado.')}>{busy === v.id ? 'Comprobando…' : 'Comprobar entrega'}</button>
         <button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => submissionCancel(v.id), 'Versión cancelada (se conserva en el historial).')}>Cancelar</button>
@@ -84,6 +96,8 @@
 {:else}
   <p class="muted">{activityId === undefined ? 'Aún no has preparado ninguna entrega.' : 'Sin versiones preparadas para esta tarea.'}</p>
 {/each}
+
+{#if scheduling}<ScheduleForm version={scheduling} onCancel={() => (scheduling = null)} onDone={async () => { scheduling = null; notice = 'Entrega programada. AulaDesk intentará entregar a esa hora (app abierta y sesión de Moodle iniciada).'; await load(); onChange(); }} />{/if}
 
 {#if confirmSubmit}
   <div class="overlay" role="dialog" aria-modal="true" aria-label="Confirmar la entrega">
@@ -140,7 +154,7 @@
   header { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .small { font-size: 12.5px; } .mono { font-size: 11px; word-break: break-all; } .file { overflow-wrap: anywhere; }
   .evid { border-left: 3px solid var(--accent); padding-left: 10px; } .err-t { color: var(--bad); }
   .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-  .replace { margin: 8px 0; }
+  .replace { margin: 8px 0; } .sched { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .sendbox { display: grid; grid-template-columns: repeat(3, auto); gap: 6px 22px; justify-content: start; padding: 12px 14px; margin: 10px 0; background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius); } .sendbox div { display: flex; flex-direction: column; min-width: 0; } .sendbox b { overflow-wrap: anywhere; }
   .agree { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 4px; font-size: 13.5px; }
   .steps { list-style: none; margin: 14px 0; padding: 0; display: flex; flex-direction: column; gap: 9px; } .steps li { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13.5px; }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-drive-upload-pending"
+description = "Enables the drive_upload_pending command without any pre-configured scope."
+commands.allow = ["drive_upload_pending"]
+
+[[permission]]
+identifier = "deny-drive-upload-pending"
+description = "Denies the drive_upload_pending command without any pre-configured scope."
+commands.deny = ["drive_upload_pending"]

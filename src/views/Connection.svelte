@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import Icon from '../lib/Icon.svelte';
+  import DriveCard from '../lib/DriveCard.svelte';
   import { account, initials } from '../lib/account.svelte';
   import { moodleOpen, moodleClose, moodleStatus, moodleSync, moodleForgetSession, getSetting, setSetting, autosyncStatus, type SessionState, type SyncSummary, type AutoSyncStatus } from '../lib/api';
   import { fmtAgo, fmtRemaining } from '../lib/format';
@@ -102,6 +103,8 @@
       <label class="row"><input type="checkbox" checked={auto.close_to_tray} disabled={!auto.tray} onchange={(e) => setAuto('close_to_tray', e.currentTarget.checked ? '1' : '0')} /> Activado</label></div>
   {/if}
 </section>
+
+<DriveCard />
 
 <style>
   .autorow { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 12px 0; border-top: 1px solid var(--line); flex-wrap: wrap; } .autorow:first-of-type { border-top: 0; margin-top: 6px; }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-pending-prompt-data"
+description = "Enables the pending_prompt_data command without any pre-configured scope."
+commands.allow = ["pending_prompt_data"]
+
+[[permission]]
+identifier = "deny-pending-prompt-data"
+description = "Denies the pending_prompt_data command without any pre-configured scope."
+commands.deny = ["pending_prompt_data"]

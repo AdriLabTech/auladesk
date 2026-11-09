@@ -110,3 +110,36 @@ export const moodleAccount = () => invoke<MoodleAccount>('moodle_account');
 export interface AutoSyncStatus { enabled: boolean; minutes: number; last_at: number | null; last_ok: boolean | null; next_at: number | null; running: boolean; session_active: boolean; tray: boolean; close_to_tray: boolean }
 export const autosyncStatus = () => invoke<AutoSyncStatus>('autosync_status');
 export const submissionSubmit = (id: number, confirmed: boolean, replace = false) => invoke<VersionRow>('submission_submit', { id, confirmed, replace });
+
+// ── Entregas programadas y aviso al abrir ──
+export interface ScheduleRow {
+  id: number; version_id: number; run_at: number; state: 'scheduled' | 'running' | 'done' | 'failed' | 'cancelled' | 'missed'; attempts: number;
+  last_attempt_at: number | null; last_error: string | null; replace_existing: number; seen: number; created_at: number;
+  activity_name: string; course_name: string; file_name: string; sha256: string; deadline_at: number | null;
+}
+export interface PendingItem { version: VersionRow; schedule: ScheduleRow | null; can_submit: number | null }
+export interface PendingPrompt { items: PendingItem[]; results: ScheduleRow[] }
+export const scheduleCreate = (versionId: number, runAt: number, confirmed: boolean, replace = false) => invoke<number>('schedule_create', { versionId, runAt, replace, confirmed });
+export const scheduleList = (onlyActive = false) => invoke<ScheduleRow[]>('schedule_list', { onlyActive });
+export const scheduleCancel = (id: number) => invoke<void>('schedule_cancel', { id });
+export const pendingPromptData = () => invoke<PendingPrompt>('pending_prompt_data');
+export const scheduleMarkSeen = () => invoke<void>('schedule_mark_seen');
+
+// ── Google Drive ──
+export interface DriveStatus { bundled: boolean; configured: boolean; connected: boolean; account: string | null; client_id: string | null; backup_submissions: boolean; uploaded: number }
+export interface UploadOutcome { file_id: number; name: string; status: 'uploaded' | 'skipped' | 'error'; drive_url: string | null; detail: string | null }
+export interface DriveFileState { local_file_id: number; drive_url: string | null; uploaded_at: number }
+export const driveStatus = () => invoke<DriveStatus>('drive_status');
+export const driveSetClient = (clientId: string, clientSecret: string) => invoke<void>('drive_set_client', { clientId, clientSecret });
+export const driveConnect = () => invoke<string>('drive_connect');
+export const driveDisconnect = (forgetClient = false) => invoke<void>('drive_disconnect', { forgetClient });
+export const driveUploadFiles = (ids: number[]) => invoke<UploadOutcome[]>('drive_upload_files', { ids });
+export const driveUploadPending = (courseId?: number) => invoke<UploadOutcome[]>('drive_upload_pending', { courseId });
+export const driveFileStates = () => invoke<DriveFileState[]>('drive_file_states');
+
+export interface FolderStatus { path: string | null; available: boolean; submissions: boolean }
+export interface CopyOutcome { file_id: number; name: string; status: 'copied' | 'skipped' | 'error'; detail: string | null }
+export const folderBackupStatus = () => invoke<FolderStatus>('folder_backup_status');
+export const folderBackupSet = (path: string | null) => invoke<void>('folder_backup_set', { path });
+export const folderBackupSubmissionsSet = (on: boolean) => invoke<void>('folder_backup_submissions_set', { on });
+export const folderBackupRun = (courseId?: number) => invoke<CopyOutcome[]>('folder_backup_run', { courseId });

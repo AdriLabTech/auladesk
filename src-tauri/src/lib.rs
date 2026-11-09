@@ -4,6 +4,9 @@ pub mod dashboard;
 pub mod autosync;
 pub mod db;
 pub mod devctl;
+pub mod drive;
+pub mod folder_backup;
+pub mod scheduler;
 pub mod downloads;
 pub mod error;
 pub mod files;
@@ -65,12 +68,16 @@ pub fn run() {
             notif_cmds::calendar_list, notif_cmds::calendar_create, notif_cmds::calendar_update, notif_cmds::calendar_delete, notif_cmds::calendar_set_notes, notif_cmds::notif_list, notif_cmds::notif_mark_read, notif_cmds::notif_unread_count, notif_cmds::notif_settings_get, notif_cmds::notif_settings_set, notif_cmds::notif_test, notif_cmds::service_status, notif_cmds::service_install, notif_cmds::service_uninstall,
             dashboard::dashboard_data,
             tasks::task_list, tasks::task_set_flags, tasks::note_set,
-            submission_cmds::submission_prepare, submission_cmds::submission_history, submission_cmds::submission_cancel, submission_cmds::submission_start, submission_cmds::submission_submit, submission_cmds::submission_verify
+            submission_cmds::submission_prepare, submission_cmds::submission_history, submission_cmds::submission_cancel, submission_cmds::submission_start, submission_cmds::submission_submit, submission_cmds::submission_verify,
+            scheduler::schedule_create, scheduler::schedule_list, scheduler::schedule_cancel, scheduler::pending_prompt_data, scheduler::schedule_mark_seen,
+            drive::drive_status, drive::drive_set_client, drive::drive_connect, drive::drive_disconnect, drive::drive_upload_files, drive::drive_upload_pending, drive::drive_file_states,
+            folder_backup::folder_backup_status, folder_backup::folder_backup_set, folder_backup::folder_backup_submissions_set, folder_backup::folder_backup_run
         ])
         .setup(|app| { let _ = app.get_webview_window("main");
             // Sincronización automática + bandeja
             let h_auto = app.handle().clone();
             tauri::async_runtime::spawn(autosync::run_loop(h_auto));
+            tauri::async_runtime::spawn(scheduler::run_loop(app.handle().clone()));
             let h_tray = app.handle().clone();
             tauri::async_runtime::block_on(async { let st = h_tray.state::<state::AppState>();
                 autosync::CLOSE_TO_TRAY.store(db::get_setting(&st.pool, "close_to_tray").await.ok().flatten().as_deref() != Some("0"), std::sync::atomic::Ordering::SeqCst); });

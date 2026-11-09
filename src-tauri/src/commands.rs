@@ -6,10 +6,10 @@ use tauri::State;
 pub struct AppInfo { version: &'static str, data_dir: String, db_path: String, session_type: Option<String>, schema_tables: i64 }
 
 /// Ajustes que la interfaz puede escribir. Cualquier clave nueva que guarde el frontend DEBE añadirse aquí (si no, se rechaza).
-pub const ALLOWED_SETTINGS: [&str; 15] = [
+pub const ALLOWED_SETTINGS: [&str; 16] = [
     "theme", "sidebar_collapsed", "moodle_base_url", "remember_session",
     "theme_id", "theme_accent", "theme_radius", "theme_calm", "welcome_enabled", "tasks_view", "tasks_board_by",
-    "autosync_enabled", "autosync_minutes", "close_to_tray", "welcome_config",
+    "autosync_enabled", "autosync_minutes", "close_to_tray", "welcome_config", "drive_backup_submissions",
 ];
 
 #[tauri::command]
@@ -349,7 +349,7 @@ mod settings_tests {
     /// Claves de apariencia y vistas que el frontend persiste (lib/theme.svelte.ts, views/Tasks.svelte). Si falla, el ajuste no se guardaría.
     #[test]
     fn frontend_setting_keys_are_allowed() {
-        for k in ["theme_id", "theme_accent", "theme_radius", "theme_calm", "welcome_enabled", "tasks_view", "tasks_board_by", "sidebar_collapsed", "remember_session", "autosync_enabled", "autosync_minutes", "close_to_tray", "welcome_config"] {
+        for k in ["theme_id", "theme_accent", "theme_radius", "theme_calm", "welcome_enabled", "tasks_view", "tasks_board_by", "sidebar_collapsed", "remember_session", "autosync_enabled", "autosync_minutes", "close_to_tray", "welcome_config", "drive_backup_submissions"] {
             assert!(ALLOWED_SETTINGS.contains(&k), "{k} no está permitido");
         }
         // las claves de cuenta las escribe solo el backend: la interfaz no debe poder falsearlas

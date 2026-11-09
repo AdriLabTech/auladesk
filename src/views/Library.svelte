@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { open as pickFile } from '@tauri-apps/plugin-dialog';
-  import { listFiles, listDuplicates, listCourses, listFolders, fileOpen, fileReveal, fileRename, fileMove, folderCreate, fileDelete, importFile, type FileRow, type CourseRow } from '../lib/api';
+  import { listFiles, listDuplicates, listCourses, listFolders, fileOpen, fileReveal, fileRename, fileMove, folderCreate, fileDelete, importFile, driveStatus, driveUploadFiles, driveFileStates, type FileRow, type CourseRow } from '../lib/api';
   import { fmtSize, fmtDate } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import { openViewer } from '../lib/viewerstate.svelte';
@@ -16,6 +16,7 @@
   let editing = $state<{ id: number; mode: 'rename' | 'move'; value: string } | null>(null);
   let confirmDel = $state<number | null>(null);
   let newFolder = $state('');
+  let driveOn = $state(false); let onDrive = $state<Map<number, string | null>>(new Map()); let upBusy = $state(false);
 
   const kinds = ['pdf', 'documento', 'hoja', 'presentación', 'comprimido', 'imagen', 'código', 'otro'];
   const kindGlyph: Record<string, string> = { pdf: 'PDF', documento: 'DOC', hoja: 'XLS', 'presentación': 'PPT', comprimido: 'ZIP', imagen: 'IMG', 'código': '</>', otro: 'FILE' };
@@ -24,6 +25,7 @@
     try {
       files = await listFiles({ q, course_id: courseId ? Number(courseId) : null, kind, sort });
       dupGroups = await listDuplicates(); folders = await listFolders();
+      driveOn = (await driveStatus()).connected; onDrive = new Map((await driveFileStates()).map((d) => [d.local_file_id, d.drive_url]));
     } catch (e) { error = String(e); }
   }
   onMount(async () => { courses = await listCourses().catch(() => []); await load(); });
@@ -36,6 +38,12 @@
   async function submitEdit() {
     if (!editing) return; const e = editing;
     await act(() => (e.mode === 'rename' ? fileRename(e.id, e.value) : fileMove(e.id, e.value)), e.mode === 'rename' ? 'Renombrado' : 'Movido');
+  }
+  const pendingDrive = $derived(files.filter((f) => f.exists && !onDrive.has(f.id)));
+  async function uploadVisible() {
+    upBusy = true; error = ''; notice = '';
+    try { const r = await driveUploadFiles(pendingDrive.slice(0, 500).map((f) => f.id)); const bad = r.filter((x) => x.status === 'error'); notice = `${r.filter((x) => x.status === 'uploaded').length} archivo(s) subido(s) a Drive.`; if (bad.length) error = `${bad.length} con error: ${bad[0].name} — ${bad[0].detail}`; await load(); }
+    catch (e) { error = String(e); } finally { upBusy = false; }
   }
   async function doImport() {
     const p = await pickFile({ multiple: false, directory: false });
@@ -69,6 +77,7 @@
   <form onsubmit={(e) => { e.preventDefault(); if (newFolder.trim()) act(() => folderCreate(newFolder), `Carpeta «${newFolder}» creada`).then(() => (newFolder = '')); }}>
     <input placeholder="Nueva carpeta (p. ej. Personal/Apuntes)" bind:value={newFolder} aria-label="Nombre de carpeta" /><button class="btn">Crear</button>
   </form>
+  {#if driveOn}<button class="btn" disabled={upBusy || pendingDrive.length === 0} onclick={uploadVisible} title="Sube a Google Drive los archivos de esta vista que aún no están">{upBusy ? 'Subiendo a Drive…' : `Subir a Drive (${pendingDrive.length})`}</button>{/if}
   {#if dupGroups.length}<button class="btn warn" onclick={() => (showDups = !showDups)}>{dupGroups.length} grupo(s) duplicado(s)</button>{/if}
 </div>
 
@@ -95,7 +104,7 @@
           <div class="meta">
             <b>{f.original_name}</b>
             <small class="muted">{f.course_name ?? 'Sin asignatura'}{f.section_position !== null ? ` · ${f.section_position === 0 ? 'General' : 'Tema ' + f.section_position}` : ''}{f.activity_name ? ` · ${f.activity_name}` : ''}</small>
-            <small class="muted path">{f.rel_path}{f.sync_state === 'outdated' ? ' · versión anterior' : ''}{!f.exists ? ' · NO ESTÁ EN DISCO' : ''}</small>
+            <small class="muted path">{#if onDrive.has(f.id)}<b class="gd">En Drive</b> · {/if}{f.rel_path}{f.sync_state === 'outdated' ? ' · versión anterior' : ''}{!f.exists ? ' · NO ESTÁ EN DISCO' : ''}</small>
           </div>
           <span class="muted nowrap">{fmtSize(f.size_bytes)}<br />{fmtDate(f.downloaded_at)}</span>
           <div class="acts">
@@ -135,6 +144,7 @@
   .meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; } .meta b { overflow-wrap: anywhere; font-weight: 600; } .meta small { font-size: 12px; } .path { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; overflow-wrap: anywhere; }
   .nowrap { white-space: nowrap; font-size: 12px; text-align: right; } .acts { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 440px; opacity: .6; transition: opacity .2s; } li:hover .acts, li:focus-within .acts { opacity: 1; }
   .edit { grid-column: 1 / -1; display: flex; gap: 8px; align-items: end; flex-wrap: wrap; padding-top: 8px; animation: rise .3s var(--ease) backwards; } .edit label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1; min-width: 240px; font-weight: 500; }
+  .gd { color: var(--ok); font-family: var(--font-body, inherit); }
   .dups { margin-top: 12px; } .dups .dg { padding: 10px 0; border-top: 1px solid var(--line); } .dups code { font-size: 12px; }
   @media (max-width: 900px) { li { grid-template-columns: 52px 1fr; } .acts { grid-column: 1 / -1; justify-content: flex-start; max-width: none; opacity: 1; } .nowrap { text-align: left; } }
 </style>

@@ -6,6 +6,7 @@
   import { loadTheme, look } from './lib/theme.svelte';
   import Welcome from './lib/Welcome.svelte';
   import Viewer from './lib/Viewer.svelte';
+  import PendingPrompt from './lib/PendingPrompt.svelte';
   import { loadHero } from './lib/herocfg.svelte';
   import { account, refreshAccount, initials } from './lib/account.svelte';
   import { listen } from '@tauri-apps/api/event';
@@ -127,6 +128,7 @@
 </div>
 <Palette />
 <Viewer />
+<PendingPrompt {session} />
 {#if nav.welcome}<Welcome onDone={() => (nav.welcome = false)} />{/if}
 
 <style>

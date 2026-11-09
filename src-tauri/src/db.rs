@@ -237,7 +237,10 @@ mod tests {
         let t: i64 = sqlx::query_scalar("SELECT count(*) FROM sqlite_master WHERE type='table'").fetch_one(&mut c).await.unwrap();
         let m: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations").fetch_one(&mut c).await.unwrap();
         assert!(!is_plaintext(&p));
-        println!("OK: {t} tablas, {m} migraciones registradas; original en {}", keep.display());
+        drop(c);
+        let pool = open_encrypted(&p, K).await.expect("abrir cifrada y aplicar migraciones pendientes");
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations").fetch_one(&pool).await.unwrap();
+        println!("OK: {t} tablas, {m} migraciones antes, {n} después; original en {}", keep.display());
     }
 
     #[tokio::test]
