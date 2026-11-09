@@ -67,7 +67,7 @@ pub fn run_headless() {
     tracing::info!("notificador en segundo plano arrancando");
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().worker_threads(1).build().expect("runtime");
     rt.block_on(async {
-        let pool = crate::db::open(&data_dir.join("database/moodledesk.db")).await.expect("abrir BD");
+        let pool = crate::db::open_app(&data_dir.join("database/moodledesk.db")).await.expect("abrir BD");
         run_loop(pool, Arc::new(NotifySend), Duration::from_secs(60)).await;
     });
 }

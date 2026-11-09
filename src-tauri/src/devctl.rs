@@ -53,6 +53,17 @@ pub fn spawn(app: AppHandle, data_dir: PathBuf) {
                         Ok(u) if window::is_allowed(&u) => { let _ = w.navigate(u); tracing::info!("devctl nav {}", arg.split('?').next().unwrap_or("")); }
                         _ => tracing::warn!("devctl: ruta rechazada"),
                     },
+                    // SPIKE PASEN (solo lectura): navega a una URL https de *.juntadeandalucia.es para verla con la sesión del propio usuario.
+                    ("navext", Some(w)) => match arg.parse::<tauri::Url>() {
+                        Ok(u) if window::nav_allowed(&u) && u.scheme() == "https" => { let _ = w.navigate(u.clone()); tracing::info!("devctl navext {}", u.host_str().unwrap_or("")); }
+                        _ => tracing::warn!("devctl: navext rechazado"),
+                    },
+                    // SPIKE: pulsa el primer enlace/botón cuyo texto contiene `arg` (solo en la ventana ya cargada).
+                    ("clicktext", Some(w)) => {
+                        let t = serde_json::to_string(arg).unwrap_or_default();
+                        let _ = w.eval(format!("(()=>{{const t={t};const e=[...document.querySelectorAll('a,button')].find(x=>x.textContent.includes(t));if(e)e.click();}})()"));
+                        tracing::info!("devctl clicktext");
+                    }
                     ("assign", Some(w)) => {
                         // Sondeo puntual de una tarea (por cmid) para pruebas.
                         let _ = w.eval("1");

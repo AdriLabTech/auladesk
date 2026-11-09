@@ -37,7 +37,7 @@ pub fn run() {
         .init();
     tracing::info!("AulaDesk {} arrancando", env!("CARGO_PKG_VERSION"));
 
-    let pool = tauri::async_runtime::block_on(db::open(&data_dir.join("database/moodledesk.db")))
+    let pool = tauri::async_runtime::block_on(db::open_app(&data_dir.join("database/moodledesk.db")))
         .expect("abrir base de datos");
 
     tauri::Builder::default()
