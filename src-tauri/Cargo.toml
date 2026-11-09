@@ -1,6 +1,6 @@
 [package]
 name = "auladesk"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "Cliente de escritorio para plataformas Moodle: tareas, entregas versionadas, archivos y avisos en local."
 license = "MIT"
@@ -41,7 +41,6 @@ percent-encoding = "2"
 base64 = "0.22"
 unicode-normalization = "0.1"
 keyring = { version = "3", default-features = false }
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "form", "query"] }
 
 [dev-dependencies]
 tempfile = "3"

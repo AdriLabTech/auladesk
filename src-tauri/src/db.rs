@@ -232,7 +232,7 @@ mod tests {
         let p = std::path::PathBuf::from(std::env::var("AULADESK_TEST_DB").expect("define AULADESK_TEST_DB"));
         let keep = encrypt_in_place(&p, K).await.expect("cifrar la copia");
         // Sin migrar: una BD real puede traer migraciones de otra rama (p. ej. la 0006 de Drive) que este código no conoce.
-        use sqlx::{ConnectOptions, Connection};
+        use sqlx::ConnectOptions;
         let mut c = SqliteConnectOptions::new().filename(&p).pragma("key", key_pragma(K)).connect().await.expect("abrir cifrada");
         let t: i64 = sqlx::query_scalar("SELECT count(*) FROM sqlite_master WHERE type='table'").fetch_one(&mut c).await.unwrap();
         let m: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations").fetch_one(&mut c).await.unwrap();

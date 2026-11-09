@@ -125,17 +125,7 @@ export const scheduleCancel = (id: number) => invoke<void>('schedule_cancel', { 
 export const pendingPromptData = () => invoke<PendingPrompt>('pending_prompt_data');
 export const scheduleMarkSeen = () => invoke<void>('schedule_mark_seen');
 
-// ── Google Drive ──
-export interface DriveStatus { bundled: boolean; configured: boolean; connected: boolean; account: string | null; client_id: string | null; backup_submissions: boolean; uploaded: number }
-export interface UploadOutcome { file_id: number; name: string; status: 'uploaded' | 'skipped' | 'error'; drive_url: string | null; detail: string | null }
-export interface DriveFileState { local_file_id: number; drive_url: string | null; uploaded_at: number }
-export const driveStatus = () => invoke<DriveStatus>('drive_status');
-export const driveSetClient = (clientId: string, clientSecret: string) => invoke<void>('drive_set_client', { clientId, clientSecret });
-export const driveConnect = () => invoke<string>('drive_connect');
-export const driveDisconnect = (forgetClient = false) => invoke<void>('drive_disconnect', { forgetClient });
-export const driveUploadFiles = (ids: number[]) => invoke<UploadOutcome[]>('drive_upload_files', { ids });
-export const driveUploadPending = (courseId?: number) => invoke<UploadOutcome[]>('drive_upload_pending', { courseId });
-export const driveFileStates = () => invoke<DriveFileState[]>('drive_file_states');
+// ── Copia en una carpeta sincronizada ──
 
 export interface FolderStatus { path: string | null; available: boolean; submissions: boolean }
 export interface CopyOutcome { file_id: number; name: string; status: 'copied' | 'skipped' | 'error'; detail: string | null }

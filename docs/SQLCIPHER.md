@@ -20,6 +20,6 @@ Estado (2026-11-09, rama `integraciones-educativas`): implementado y probado en 
 - **Perder la clave = perder la BD.** Si se borra el llavero (reinstalación, otro usuario) los datos no se pueden recuperar; la fuente de verdad siguen siendo Moodle/PASEN y los archivos en disco (que no están cifrados: solo la BD). Las copias de seguridad cifradas necesitan la misma clave.
 - **El archivador/servicio antiguo** (`auladesk --notifier` instalado) no sabe leer la BD cifrada: hay que actualizar el binario del servicio a la vez que la app (`service_install`).
 - **Los ficheros descargados** (biblioteca, entregas, caché) y los logs **no** se cifran con esto. Si se quiere proteger también eso, ver cifrado de disco del sistema.
-- **Migración 0006 (Drive)**: tu BD real ya la tiene aplicada desde la rama `drive-entregas-programadas`; esta rama no la conoce y `open_app` fallaría con `VersionMissing(6)`. Antes de instalar o probar con datos reales hay que **integrar ambas ramas**.
+- **Migración 0006**: contiene las entregas programadas (en uso) y dos tablas de Drive que ya no se usan; se conservan porque las migraciones aplicadas no se editan.
 - Windows/macOS: `vendored-openssl` necesita Perl y compilador C en CI (`release.yml`); **no probado**.
 - CI y Docker: `libssl-dev` ya está instalado; falta comprobar tiempo de compilación y `perl` en la imagen.

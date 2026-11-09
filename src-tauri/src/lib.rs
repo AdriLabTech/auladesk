@@ -4,7 +4,6 @@ pub mod dashboard;
 pub mod autosync;
 pub mod db;
 pub mod devctl;
-pub mod drive;
 pub mod folder_backup;
 pub mod scheduler;
 pub mod downloads;
@@ -70,7 +69,6 @@ pub fn run() {
             tasks::task_list, tasks::task_set_flags, tasks::note_set,
             submission_cmds::submission_prepare, submission_cmds::submission_history, submission_cmds::submission_cancel, submission_cmds::submission_start, submission_cmds::submission_submit, submission_cmds::submission_verify,
             scheduler::schedule_create, scheduler::schedule_list, scheduler::schedule_cancel, scheduler::pending_prompt_data, scheduler::schedule_mark_seen,
-            drive::drive_status, drive::drive_set_client, drive::drive_connect, drive::drive_disconnect, drive::drive_upload_files, drive::drive_upload_pending, drive::drive_file_states,
             folder_backup::folder_backup_status, folder_backup::folder_backup_set, folder_backup::folder_backup_submissions_set, folder_backup::folder_backup_run
         ])
         .setup(|app| { let _ = app.get_webview_window("main");

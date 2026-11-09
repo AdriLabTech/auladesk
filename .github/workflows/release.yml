@@ -34,9 +34,6 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Cliente de Google integrado (opcional; variables del repositorio, no secretos: acaban en el binario). Sin ellas, Drive pide un ID de cliente propio.
-          AULADESK_GOOGLE_CLIENT_ID: ${{ vars.AULADESK_GOOGLE_CLIENT_ID }}
-          AULADESK_GOOGLE_CLIENT_SECRET: ${{ vars.AULADESK_GOOGLE_CLIENT_SECRET }}
         with:
           tagName: v__VERSION__
           releaseName: 'AulaDesk v__VERSION__'

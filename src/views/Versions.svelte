@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open as pickFile } from '@tauri-apps/plugin-dialog';
-  import { submissionHistory, submissionPrepare, submissionStart, submissionVerify, submissionCancel, submissionSubmit, scheduleList, scheduleCancel, driveStatus, driveUploadFiles, fileReveal, fileOpen, type VersionRow, type ScheduleRow } from '../lib/api';
+  import { submissionHistory, submissionPrepare, submissionStart, submissionVerify, submissionCancel, submissionSubmit, scheduleList, scheduleCancel, fileReveal, fileOpen, type VersionRow, type ScheduleRow } from '../lib/api';
   import { fmtDate, fmtSize, versionState } from '../lib/format';
   import Icon from '../lib/Icon.svelte';
   import { openViewer } from '../lib/viewerstate.svelte';
@@ -12,7 +12,6 @@
   let rows = $state<VersionRow[]>([]);
   let schedules = $state<ScheduleRow[]>([]);
   let scheduling = $state<VersionRow | null>(null);
-  let driveOn = $state(false);
   const schedOf = (v: VersionRow) => schedules.find((s) => s.version_id === v.id && ['scheduled', 'running'].includes(s.state));
   let error = $state(''); let notice = $state('');
   let busy = $state<number | 'prep' | null>(null);
@@ -37,10 +36,7 @@
     await load(); onChange();
   }
 
-  async function load() { try { rows = await submissionHistory(activityId); schedules = await scheduleList(true); driveOn = (await driveStatus()).connected; } catch (e) { error = String(e); } }
-  async function toDrive(v: VersionRow) {
-    await run(v.id, async () => { const [r] = await driveUploadFiles([v.file_id]); if (r.status === 'error') throw new Error(r.detail ?? 'No se pudo subir a Drive'); }, 'Copia guardada en Google Drive.');
-  }
+  async function load() { try { rows = await submissionHistory(activityId); schedules = await scheduleList(true); } catch (e) { error = String(e); } }
   onMount(load);
 
   async function run<T>(key: number | 'prep', f: () => Promise<T>, ok = '') {
@@ -82,7 +78,6 @@
     <div class="acts">
       <button class="btn sm" onclick={() => openViewer({ id: v.file_id, name: v.file_name })}>Ver copia</button>
       <button class="btn sm" onclick={() => fileOpen(v.file_id).catch((e) => (error = String(e)))}>Abrir con el sistema</button>
-      {#if driveOn}<button class="btn sm" disabled={busy !== null} onclick={() => toDrive(v)}>Guardar en Drive</button>{/if}
       <button class="btn sm" onclick={() => fileReveal(v.file_id).catch((e) => (error = String(e)))}>Mostrar carpeta</button>
       {#if open(v)}
         <button class="btn sm primary" disabled={busy !== null || subRun !== null} onclick={() => { agree = false; confirmSubmit = v; }}><Icon name="submissions" size={14} /> {hasSubmission ? 'Reemplazar entrega desde AulaDesk…' : 'Entregar desde AulaDesk…'}</button>
