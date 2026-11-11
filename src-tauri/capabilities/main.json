@@ -21,6 +21,8 @@
     "allow-moodle-status",
     "allow-autosync-status",
     "allow-moodle-account",
+    "allow-player-state",
+    "allow-player-control",
     "allow-audio-viz-start",
     "allow-audio-viz-stop",
     "allow-startup-sync-status",

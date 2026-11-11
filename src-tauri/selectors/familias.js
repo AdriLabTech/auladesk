@@ -181,6 +181,9 @@
     const i = [...s.options].findIndex((o) => norm(o.text) === norm(option));
     if (i < 0) return fail('select', 'el desplegable no tiene la opción «' + String(option).slice(0, 40) + '»');
     s.selectedIndex = i; s.dispatchEvent(new Event('change', { bubbles: true }));
+    // El portal reemplaza el contenido sin recargar la página (~0,5 s): se espera al desplegable NUEVO con la opción elegida, para no leer la tabla anterior.
+    const fresh = await waitFor(() => { const n = document.getElementById(String(id)); return n && n !== s && n.selectedIndex >= 0 && norm(n.options[n.selectedIndex].text) === norm(option) ? n : null; }, 10000);
+    if (!fresh) return fail('select', 'el portal no actualizó los datos tras elegir «' + String(option).slice(0, 40) + '»');
     return send('step', { ok: true });
   };
   const clickStudent = async (name) => {

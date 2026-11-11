@@ -16,7 +16,8 @@ const MAX_PAYLOAD: usize = 4 * 1024 * 1024;
 /// una manual como máximo cada 5 min, sin paralelismo y con una pausa entre pasos.
 pub const AUTO_MIN_INTERVAL_SECS: i64 = 3600;
 pub const MANUAL_COOLDOWN_SECS: i64 = 300;
-const STEP_PAUSE_MS: u64 = 1200;
+/// Pausa tras abrir una página por URL. Los clics y desplegables ya no la usan: esperan a un evento real (carga o contenido nuevo).
+const STEP_PAUSE_MS: u64 = 150;
 
 /// ¿Se puede sincronizar ahora? `last_attempt` = fin del último intento (correcto o no).
 pub fn sync_allowed(now: i64, last_attempt: Option<i64>, manual: bool) -> Result<(), String> {
@@ -179,10 +180,16 @@ async fn run_extractor(w: &Webview, st: &AppState, js_kind: &str, args: serde_js
     }
 }
 
+struct StepLog(&'static str, std::time::Instant);
+impl Drop for StepLog { fn drop(&mut self) { tracing::info!("Familias paso {}: {} ms", self.0, self.1.elapsed().as_millis()); } }
+
 async fn exec_steps(app: &AppHandle, st: &AppState, steps: &[Step], student: Option<&Student>) -> Result<SyncStats, String> {
     let w = window::get(app).ok_or("la ventana de Familias no está abierta")?;
     let mut total = SyncStats::default();
     for step in steps {
+        let t_step = std::time::Instant::now();
+        let name = match step { Step::Goto(_) => "goto", Step::Click(_) => "click", Step::ClickStudent(_) => "click_student", Step::Select { .. } => "select", Step::WaitMs(_) => "wait", Step::Extract { .. } => "extract" };
+        let _guard = StepLog(name, t_step);
         match step {
             Step::Goto(path) => {
                 let url = window::entry_url().join(path).map_err(|e| e.to_string())?;
@@ -193,13 +200,19 @@ async fn exec_steps(app: &AppHandle, st: &AppState, steps: &[Step], student: Opt
                 let _ = tokio::time::timeout(Duration::from_secs(15), loads.changed()).await;
                 tokio::time::sleep(Duration::from_millis(STEP_PAUSE_MS)).await;
             }
-            Step::Click(text) => { run_extractor(&w, st, "click", serde_json::json!({ "text": text })).await?; wait_load(st).await; tokio::time::sleep(Duration::from_millis(STEP_PAUSE_MS)).await; }
+            Step::Click(text) => {
+                // Se suscribe ANTES del clic: una carga rápida no se pierde (antes se esperaban 12 s en balde).
+                let mut loads = st.familias_page_loads.subscribe(); loads.borrow_and_update();
+                run_extractor(&w, st, "click", serde_json::json!({ "text": text })).await?;
+                let _ = tokio::time::timeout(Duration::from_secs(12), loads.changed()).await;
+            }
             Step::ClickStudent(_) => {
                 let s = student.ok_or("receta por alumno sin alumno")?;
                 run_extractor(&w, st, "click_student", serde_json::json!({ "name": s.display_name })).await?;
                 tokio::time::sleep(Duration::from_millis(STEP_PAUSE_MS)).await;
             }
-            Step::Select { id, option } => { run_extractor(&w, st, "select", serde_json::json!({ "id": id, "option": option })).await?; wait_load(st).await; tokio::time::sleep(Duration::from_millis(STEP_PAUSE_MS)).await; }
+            // El propio puente espera a que el portal sustituya el desplegable (sin recarga de página); no hay evento de carga que esperar.
+            Step::Select { id, option } => { run_extractor(&w, st, "select", serde_json::json!({ "id": id, "option": option })).await?; }
             Step::WaitMs(ms) => tokio::time::sleep(Duration::from_millis(*ms)).await,
             Step::Extract { extractor, kind } => {
                 let r = run_extractor(&w, st, &format!("extract:{extractor}"), serde_json::json!({ "kind": kind })).await?;

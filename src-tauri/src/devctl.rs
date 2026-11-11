@@ -113,6 +113,12 @@ pub fn spawn(app: AppHandle, data_dir: PathBuf) {
             }
         }
         ("setting", _) => { if let Some((k, v)) = arg.split_once(' ') { match crate::db::set_setting(&app.state::<crate::state::AppState>().pool, k, v.trim()).await { Ok(()) => tracing::info!("devctl setting {k}={}", v.trim()), Err(e) => tracing::warn!("devctl setting: {e}") } } }
+        ("player", _) => { let r = crate::player::player_state().await; tracing::info!("devctl player: {} | {} | «{}» de {} | {:.0}/{:.0} s | disponible={}", r.player, r.status, r.title, r.artist, r.position, r.length, r.available); }
+        ("playerpp", _) => {
+            let a = crate::player::player_control("play_pause".into(), None).await; tracing::info!("devctl playerpp 1: {:?}", a.map(|s| s.status));
+            tokio::time::sleep(Duration::from_millis(700)).await;
+            let b = crate::player::player_control("play_pause".into(), None).await; tracing::info!("devctl playerpp 2: {:?}", b.map(|s| s.status));
+        }
         ("hide", _) => { window::set_visible(&app, false); }
                     ("wait", _) => tokio::time::sleep(Duration::from_secs(arg.parse().unwrap_or(1))).await,
                     ("nav", Some(w)) => match window::base_url().join(arg) {

@@ -24,6 +24,9 @@ export interface ActivityRow { files: number; id: number; section_position: numb
 export const moodleSync = () => withBusy('Moodle', () => invoke<SyncSummary>('moodle_sync'));
 export const moodleSyncFull = () => withBusy('Moodle (completa)', () => invoke<SyncSummary>('moodle_sync_full'));
 export const startupSyncStatus = () => invoke<string[]>('startup_sync_status');
+export interface PlayerState { available: boolean; reason: string; player: string; status: string; title: string; artist: string; album: string; position: number; length: number }
+export const playerState = () => invoke<PlayerState>('player_state');
+export const playerControl = (action: 'play_pause' | 'next' | 'previous' | 'seek', value?: number) => invoke<PlayerState>('player_control', { action, value });
 export const listCourses = () => invoke<CourseRow[]>('list_courses');
 export const courseTree = (courseId: number) => invoke<ActivityRow[]>('course_tree', { courseId });
 

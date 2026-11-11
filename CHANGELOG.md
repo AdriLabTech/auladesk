@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.3.1 — 2026-11-11
+- **Loader jugable con tablero visible**: cuadrícula de 11×11 y borde marcado, para que se vean los límites del juego.
+- **Familias, sincronización 53 s → ~9 s** (mismo resultado: 67 elementos, 0 fallos). Medido paso a paso: los tres cambios de evaluación esperaban 12 s cada uno un evento de carga que el portal nunca emite (reemplaza el contenido sin recargar, en ~0,45 s) y había ~12 s de pausas y esperas fijas. Ahora el puente espera al desplegable nuevo con la opción elegida, los clics se suscriben a la carga antes de pulsar y se eliminan las pausas.
+- **Reproductor en el ecualizador**: al pulsar el ecualizador se abre un reproductor con la canción que suena (título, artista, álbum, barra de progreso con salto), pausa/reproducción y anterior/siguiente, para cualquier reproductor MPRIS (Spotify, VLC, navegadores) mediante `playerctl`. Elige el que está sonando; sin carátulas (evita peticiones a terceros); solo Linux.
+
 ## 0.3.0 — 2026-11-11 — integración «Familias» (PASEN/iPasen) y rendimiento
 - **Cuentas vinculadas** y alumnado (`linked_account`, `student`) y contrato común de integraciones (`integration.rs`). Moodle no cambia de comportamiento.
 - **Familias**: webview propio y oculto con sesión y llavero separados; contrato de datos validado; calificaciones, faltas/retrasos, comunicaciones y tutorías por alumno; selector de alumno activo; avisos con origen y deduplicados; límites de frecuencia (auto 60 min, manual 5 min) y pausa; desvincular borra los datos de la cuenta.

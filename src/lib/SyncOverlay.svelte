@@ -38,6 +38,12 @@
   function draw() {
     const c = canvas?.getContext('2d'); if (!c) return;
     c.clearRect(0, 0, PX, PX);
+    // Tablero: cuadrícula visible y borde marcado, para que se vean los límites del juego.
+    c.lineWidth = 1; c.strokeStyle = css('--line');
+    c.beginPath();
+    for (let i = 1; i < SIZE; i++) { const p = i * CELL + 0.5; c.moveTo(p, 0); c.lineTo(p, PX); c.moveTo(0, p); c.lineTo(PX, p); }
+    c.stroke();
+    c.strokeStyle = css('--line-strong'); c.lineWidth = 2; c.strokeRect(1, 1, PX - 2, PX - 2);
     const q = CELL - 3;
     if (game.food) { c.fillStyle = css('--c-amber'); c.fillRect(game.food.x * CELL + 3, game.food.y * CELL + 3, q - 3, q - 3); }
     game.snake.forEach((p, i) => { c.globalAlpha = Math.max(.25, 1 - i * .1); c.fillStyle = css('--accent'); c.fillRect(p.x * CELL + 1, p.y * CELL + 1, q, q); });
@@ -82,7 +88,7 @@
 <style>
   .ov { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(3px); animation: fade .2s ease; }
   .card { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 34px 40px; min-width: 340px; max-width: 92vw; background: var(--panel-solid); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
-  canvas { touch-action: none; max-width: 100%; margin-bottom: 4px; }
+  canvas { touch-action: none; max-width: 100%; margin-bottom: 4px; background: var(--bg); border-radius: 2px; }
   h2 { margin: 6px 0 0; font: 600 20px var(--font-display); letter-spacing: -.01em; }
   p { margin: 0; } .hint { font-size: 12px; color: var(--faint); margin-top: 4px; } .status { font-size: 12px; color: var(--muted); max-width: 320px; }
   .bar { width: 260px; height: 6px; background: var(--panel-3); border-radius: 99px; overflow: hidden; } .bar span { display: block; height: 100%; background: var(--accent); transition: width .3s var(--ease); }

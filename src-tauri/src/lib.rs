@@ -1,5 +1,6 @@
 pub mod accounts;
 mod audio;
+mod player;
 pub mod calendar;
 mod startup;
 mod i18n;
@@ -67,7 +68,7 @@ pub fn run() {
             commands::app_info, commands::get_setting, commands::set_setting, commands::backup_database,
             commands::moodle_open, commands::moodle_close, commands::moodle_navigate,
             commands::moodle_probe, autosync::autosync_status, commands::moodle_status, commands::moodle_account, commands::ingest_page,
-            commands::moodle_forget_session, audio::audio_viz_start, audio::audio_viz_stop, startup::startup_sync_status, commands::moodle_sync, commands::moodle_sync_full, commands::list_courses, commands::course_tree,
+            commands::moodle_forget_session, player::player_state, player::player_control, audio::audio_viz_start, audio::audio_viz_stop, startup::startup_sync_status, commands::moodle_sync, commands::moodle_sync_full, commands::list_courses, commands::course_tree,
             library::download_activity, library::download_course, library::course_cover, library::list_files, library::file_open,
             library::file_reveal, library::file_read, library::file_rename, library::file_move, library::folder_create, library::file_delete,
             library::list_duplicates, library::list_folders, library::import_file,
