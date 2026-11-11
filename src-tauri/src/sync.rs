@@ -159,8 +159,44 @@ pub async fn apply_activity_dates(pool: &SqlitePool, cmid: i64, opens: Option<i6
     Ok(SyncStats { seen: 1, changed: (o != opens || c != close) as i64, removed: 0 })
 }
 
+const HOUR: i64 = 3600;
+const DAY: i64 = 24 * HOUR;
+
+/// ¿Hay que volver a leer la página de esta tarea? Moodle atiende una petición por sesión (~1,3 s cada una), así que cada página
+/// que se evita ahorra ese tiempo. Se relee lo que puede haber cambiado; lo cerrado hace tiempo se refresca de vez en cuando.
+/// `last` = última lectura de ESA página (no la del curso). `full` fuerza todo.
+pub fn assignment_needs_refresh(now: i64, due: Option<i64>, last: Option<i64>, full: bool) -> bool {
+    let Some(last) = last else { return true }; // nunca leída
+    if full { return true; }
+    let age = now - last;
+    match due {
+        None => age >= 6 * HOUR,                          // sin fecha conocida
+        Some(d) if d > now => age >= 10 * 60,             // abierta: estado de entrega, cambios de fecha
+        Some(d) if d > now - 14 * DAY => age >= HOUR,     // cerrada hace poco: puede llegar la nota
+        Some(_) => age >= 7 * DAY,                        // antigua: casi nunca cambia
+    }
+}
+/// Cuestionarios: no guardan fecha de lectura, así que se decide solo por sus fechas.
+pub fn quiz_needs_refresh(now: i64, opens: Option<i64>, due: Option<i64>, full: bool) -> bool {
+    full || (opens.is_none() && due.is_none()) || due.map_or(true, |d| d > now - 14 * DAY)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn refresh_tiers() {
+        use super::{assignment_needs_refresh as a, quiz_needs_refresh as q};
+        let now = 10_000_000;
+        assert!(a(now, Some(now + 100), None, false), "nunca leída");
+        assert!(!a(now, Some(now + DAY_), Some(now - 60), false), "abierta, leída hace 1 min");
+        assert!(a(now, Some(now + DAY_), Some(now - 11 * 60), false), "abierta, leída hace 11 min");
+        assert!(!a(now, Some(now - 3 * DAY_), Some(now - 600), false) && a(now, Some(now - 3 * DAY_), Some(now - 2 * 3600), false), "cerrada hace poco: cada hora");
+        assert!(!a(now, Some(now - 60 * DAY_), Some(now - 3 * DAY_), false) && a(now, Some(now - 60 * DAY_), Some(now - 8 * DAY_), false), "antigua: cada 7 días");
+        assert!(!a(now, None, Some(now - 3600), false) && a(now, None, Some(now - 7 * 3600), false), "sin fecha: cada 6 h");
+        assert!(a(now, Some(now - 60 * DAY_), Some(now - 60), true), "completa fuerza todo");
+        assert!(q(now, None, None, false) && q(now, None, Some(now + 5), false) && !q(now, None, Some(now - 30 * DAY_), false) && q(now, None, Some(now - 30 * DAY_), true));
+    }
+    const DAY_: i64 = 86_400;
     use super::*;
     use crate::db;
 

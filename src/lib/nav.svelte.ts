@@ -1,8 +1,8 @@
 import type { SectionId } from './sections';
 
 /** Navegación compartida: la sección actual y un «destino» opcional dentro de ella (curso o tarea a abrir). */
-export const nav = $state<{ section: SectionId; courseId: number | null; taskId: number | null; palette: boolean; welcome: boolean }>({
-  section: 'dashboard', courseId: null, taskId: null, palette: false, welcome: false,
+export const nav = $state<{ section: SectionId; courseId: number | null; taskId: number | null; palette: boolean; welcome: boolean; rev: number }>({
+  section: 'dashboard', courseId: null, taskId: null, palette: false, welcome: false, rev: 0,
 });
 
 export function go(section: SectionId, target: { courseId?: number; taskId?: number } = {}) {

@@ -41,3 +41,12 @@ Instancia de depuración aparte (datos en scratchpad), con la sesión de Moodle 
 3. Confirmar con la Consejería la existencia de APIs.
 
 Fuentes: [App Store iPasen](https://apps.apple.com/app/id511127024), [guía rápida iPasen](https://blogsaverroes.juntadeandalucia.es/iescasabermeja/files/2021/04/GUÍA-RÁPIDA-DE-iPASEN.pdf), [manual iPasen 2024](https://blogsaverroes.juntadeandalucia.es/iesriberadelfardes/files/2024/06/manual_Ipasen.pdf), [credenciales IdEA](https://blogsaverroes.juntadeandalucia.es/ceipaznaitin/files/2020/11/CREDENCIALES-IdEA-EN-PASEN_iPASEN.-Manual-para-alumnado-y-familias.pdf), [datos abiertos Junta](https://juntadeandalucia.es/datosabiertos/portal/).
+
+
+## Spike con webview propio (2026-11-11) — portal público, sin login
+Resultado de abrir el portal en el WebView **de Familias** (almacén propio, oculto) y pedir el reconocimiento estructural (`frecon`), sin credenciales ni datos personales:
+- `https://seneca.juntadeandalucia.es/seneca/jsp/portal/` carga y el puente se inyecta; el IPC remoto (capability por origen) funciona.
+- **El portal es una SPA Angular** (`app-root` › `app-main` › `app-header` / `main` / `app-footer`, componentes `app-*`, Bootstrap, sin iframes). Consecuencias: (1) la navegación interna NO dispara cargas de página, así que las recetas esperan por tiempo tras cada pulsación (`wait_ms`, pausa por paso); (2) el reconocimiento debe hacerse con la página asentada (a los ~3 s tras cargar el `main` aún estaba vacío; a los ~9 s ya estaba pintado, 495 nodos); (3) conviene que los extractores esperen a que aparezca su contenedor antes de leer.
+- Sin sesión la página se clasifica como `LoggedOut` (ruta `/seneca/jsp/portal`, sin `/seneca/nav/`).
+- **Sigue sin verificar** todo lo posterior al login: criterio de sesión activa (`/seneca/nav/<token>` es lo observado el 9-nov), selector de alumno, estructura de calificaciones/faltas/comunicaciones, caducidad, y si el acceso con QR/certificado funciona dentro de WebKitGTK. Cl@ve u otras pasarelas fuera de `*.juntadeandalucia.es` están bloqueadas por la lista de navegación.
+- Cómo continuar: Adrián inicia sesión en la ventana de Familias (Conexión › Abrir el portal) y, en cada pantalla, usa «Guardar esqueleto de la página actual»; con esos ficheros (texto sustituido por su forma) se escriben los extractores y las recetas (`familias_recipes.json`, también admite un `familias_recipes.json` local en la carpeta de datos para iterar sin recompilar).

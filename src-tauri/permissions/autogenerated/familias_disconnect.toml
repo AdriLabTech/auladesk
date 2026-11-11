@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-disconnect"
+description = "Enables the familias_disconnect command without any pre-configured scope."
+commands.allow = ["familias_disconnect"]
+
+[[permission]]
+identifier = "deny-familias-disconnect"
+description = "Denies the familias_disconnect command without any pre-configured scope."
+commands.deny = ["familias_disconnect"]

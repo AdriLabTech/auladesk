@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ingest-familias"
+description = "Enables the ingest_familias command without any pre-configured scope."
+commands.allow = ["ingest_familias"]
+
+[[permission]]
+identifier = "deny-ingest-familias"
+description = "Denies the ingest_familias command without any pre-configured scope."
+commands.deny = ["ingest_familias"]

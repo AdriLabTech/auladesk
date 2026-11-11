@@ -1,4 +1,8 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as rawInvoke } from '@tauri-apps/api/core';
+import { te } from './i18n.svelte';
+/** Todas las llamadas al backend pasan por aquí: si fallan, el mensaje se muestra en el idioma elegido. */
+const invoke = <T>(cmd: string, args?: Record<string, unknown>): Promise<T> => rawInvoke<T>(cmd, args).catch((e) => { throw te(e); });
+import { withBusy } from './busy.svelte';
 
 export interface AppInfo { version: string; data_dir: string; db_path: string; session_type: string | null; schema_tables: number }
 
@@ -17,7 +21,9 @@ export const moodleStatus = () => invoke<SessionState>('moodle_status');
 export interface SyncSummary { courses: number; synced: number; assignments: number; failed: string[] }
 export interface CourseRow { files: number; id: number; moodle_id: number; fullname: string; url: string | null; sections: number; activities: number; assignments: number; last_synced_at: number | null; removed_at: number | null }
 export interface ActivityRow { files: number; id: number; section_position: number; section_name: string; modname: string; name: string; url: string | null }
-export const moodleSync = () => invoke<SyncSummary>('moodle_sync');
+export const moodleSync = () => withBusy('Moodle', () => invoke<SyncSummary>('moodle_sync'));
+export const moodleSyncFull = () => withBusy('Moodle (completa)', () => invoke<SyncSummary>('moodle_sync_full'));
+export const startupSyncStatus = () => invoke<string[]>('startup_sync_status');
 export const listCourses = () => invoke<CourseRow[]>('list_courses');
 export const courseTree = (courseId: number) => invoke<ActivityRow[]>('course_tree', { courseId });
 
@@ -30,8 +36,8 @@ export interface FileRow {
   section_position: number | null; activity_id: number | null; activity_name: string | null; kind: string; exists: boolean;
 }
 export interface FileFilter { activity_id?: number | null; course_id?: number | null; kind?: string; q?: string; sort?: string; state?: string }
-export const downloadActivity = (activityId: number) => invoke<DownloadReport>('download_activity', { activityId });
-export const downloadCourse = (courseId: number, onlyMissing: boolean) => invoke<CourseDownloadReport>('download_course', { courseId, onlyMissing });
+export const downloadActivity = (activityId: number) => withBusy('Descargando archivos', () => invoke<DownloadReport>('download_activity', { activityId }));
+export const downloadCourse = (courseId: number, onlyMissing: boolean) => withBusy('Descargando curso', () => invoke<CourseDownloadReport>('download_course', { courseId, onlyMissing }));
 export const courseCover = (courseId: number) => invoke<string | null>('course_cover', { courseId });
 export const listFiles = (filter: FileFilter) => invoke<FileRow[]>('list_files', { filter });
 export const listDuplicates = () => invoke<FileRow[][]>('list_duplicates');
@@ -71,7 +77,7 @@ export const submissionStart = (id: number, confirmed: boolean) => invoke<void>(
 export const submissionVerify = (id: number) => invoke<VersionRow>('submission_verify', { id });
 
 export interface EventRow {
-  id: number; source: 'moodle' | 'personal'; activity_id: number | null; kind: string; title: string; notes: string | null; starts_at: number; ends_at: number | null;
+  id: number; source: 'moodle' | 'personal' | 'familias'; account_id: number | null; student_id: number | null; student_name: string | null; activity_id: number | null; kind: string; title: string; notes: string | null; starts_at: number; ends_at: number | null;
   all_day: number; cancelled_at: number | null; remind_min: number | null; course_name: string | null; activity_state: TaskState | null;
 }
 export interface NewEvent { title: string; kind: string; starts_at: number; ends_at?: number | null; all_day: boolean; notes?: string | null; remind_min?: number | null }
@@ -81,7 +87,7 @@ export const calendarUpdate = (id: number, event: NewEvent) => invoke<void>('cal
 export const calendarDelete = (id: number) => invoke<void>('calendar_delete', { id });
 export const calendarSetNotes = (id: number, notes: string) => invoke<void>('calendar_set_notes', { id, notes });
 
-export interface NotifRow { id: number; category: string; priority: number; title: string; body: string | null; ref_kind: string | null; ref_id: number | null; created_at: number; read_at: number | null; shown_at: number | null }
+export interface NotifRow { id: number; category: string; priority: number; title: string; body: string | null; ref_kind: string | null; ref_id: number | null; created_at: number; read_at: number | null; shown_at: number | null; source: string | null; account_id: number | null; student_id: number | null }
 export interface NotifSettings {
   lead_days: number[]; quiet_start: string; quiet_end: string; weekdays: boolean[]; muted: boolean;
   daily_digest: string | null; weekly_digest: string | null; weekly_day: number; categories: Record<string, boolean>;
@@ -133,3 +139,42 @@ export const folderBackupStatus = () => invoke<FolderStatus>('folder_backup_stat
 export const folderBackupSet = (path: string | null) => invoke<void>('folder_backup_set', { path });
 export const folderBackupSubmissionsSet = (on: boolean) => invoke<void>('folder_backup_submissions_set', { on });
 export const folderBackupRun = (courseId?: number) => invoke<CopyOutcome[]>('folder_backup_run', { courseId });
+
+// ── Plataformas (contrato común) ──
+export type IntegrationState = { state: 'connected' | 'expired' | 'disconnected' } | { state: 'unavailable'; reason: string };
+export interface IntegrationInfo { platform: 'moodle' | 'familias'; label: string; status: IntegrationState; last_ok_at: number | null; last_error: string | null }
+export const integrationsList = () => invoke<IntegrationInfo[]>('integrations_list');
+export const integrationSync = (platform: string) => invoke<string>('integration_sync', { platform });
+
+// ── Familias (portal de familias y alumnado) ──
+export interface Account { id: number; platform: string; label: string; external_user: string | null; state: string; last_ok_at: number | null; last_error: string | null }
+export interface Student { id: number; account_id: number; external_ref: string; display_name: string; center: string | null; course_group: string | null; tutor: string | null; last_synced_at: number | null }
+export interface FamiliasStatus { session: SessionState; account: Account; students: Student[]; active_student: number | null; paused: boolean; last_sync_at: number | null; last_error: string | null; recipes: number; window_open: boolean }
+export interface FamiliasSummary { recipes: number; seen: number; changed: number; failed: string[] }
+export interface GradeRow { id: number; subject: string; evaluation: string; grade_text: string; grade_num: number | null; observations: string | null; teacher: string | null; recorded_at: number | null; first_seen_at: number }
+export interface AttendanceRow { id: number; day: string; slot: string | null; subject: string | null; kind: 'falta' | 'retraso' | 'otro'; justified: number; justification: string | null }
+export interface MessageRow { id: number; kind: 'mensaje' | 'aviso' | 'observacion' | 'tutoria'; subject: string; sender: string | null; body: string | null; sent_at: number | null; read_in_portal: number; read_local_at: number | null; first_seen_at: number }
+export interface Overview { grades: number; subjects: number; average: number | null; absences: number; delays: number; unjustified: number; unread: number; recent_grades: GradeRow[]; next_events: [string, number][] }
+export interface ActionRow { id: number; student_id: number; kind: 'justify_absence' | 'request_tutoring' | 'send_message'; target_id: number | null; params_json: string; state: 'prepared' | 'running' | 'done' | 'failed' | 'cancelled' | 'unsupported'; created_at: number; confirmed_at: number | null; finished_at: number | null; error: string | null }
+export interface ActionParams { attendance_id?: number; reason?: string; subject?: string; body?: string }
+export const familiasOpen = () => invoke<void>('familias_open');
+export const familiasClose = () => invoke<void>('familias_close');
+export const familiasStatus = () => invoke<FamiliasStatus>('familias_status');
+export const familiasSetActiveStudent = (studentId: number) => invoke<void>('familias_set_active_student', { studentId });
+export const familiasSync = () => withBusy('Familias', () => invoke<FamiliasSummary>('familias_sync'));
+export const familiasRecon = () => invoke<void>('familias_recon');
+export const familiasPause = (paused: boolean) => invoke<void>('familias_pause', { paused });
+export const familiasDisconnect = () => invoke<void>('familias_disconnect');
+export const familiasGrades = (studentId: number) => invoke<GradeRow[]>('familias_grades', { studentId });
+export const familiasAttendance = (studentId: number) => invoke<AttendanceRow[]>('familias_attendance', { studentId });
+export const familiasMessages = (studentId: number | null) => invoke<MessageRow[]>('familias_messages', { studentId });
+export const familiasMessageRead = (id: number) => invoke<void>('familias_message_read', { id });
+export const familiasOverview = (studentId: number) => invoke<Overview>('familias_overview', { studentId });
+export const familiasActionPrepare = (studentId: number, kind: ActionRow['kind'], params: ActionParams) => invoke<number>('familias_action_prepare', { studentId, kind, params });
+export const familiasActionRun = (id: number, confirmed: boolean) => invoke<ActionRow>('familias_action_run', { id, confirmed });
+export const familiasActionCancel = (id: number) => invoke<void>('familias_action_cancel', { id });
+export const familiasActions = (studentId: number) => invoke<ActionRow[]>('familias_actions', { studentId });
+
+export interface PlatformOutcome { platform: 'moodle' | 'familias'; label: string; ok: boolean; message: string; millis: number }
+/** Sincroniza Moodle y Familias a la vez; cada una informa por separado. */
+export const syncAll = () => withBusy('Moodle y Familias', () => invoke<PlatformOutcome[]>('sync_all'));

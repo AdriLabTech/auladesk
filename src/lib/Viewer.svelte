@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t as tt } from './i18n.svelte';
+  import { trapFocus } from './a11y';
   import { tick } from 'svelte';
   import { viewer, closeViewer, kindOf, type ViewKind } from './viewerstate.svelte';
   import { fileRead, fileOpen, fileReveal } from './api';
@@ -96,32 +98,32 @@
 
 <svelte:window onkeydown={key} onresize={refit} />
 {#if viewer.file}
-  <div class="viewer" role="dialog" aria-modal="true" aria-label={`Visor: ${viewer.file.name}`}>
+  <div class="viewer" role="dialog" use:trapFocus aria-modal="true" aria-label={`Visor: ${viewer.file.name}`}>
     <header>
       <div class="ttl"><Icon name="file" size={18} /><b title={viewer.file.name}>{viewer.file.name}</b><small class="muted">{size ? fmtSize(size) : ''}{kind === 'pdf' && numPages ? ` · ${numPages} pág.` : ''}</small></div>
       {#if kind === 'pdf' && numPages}
         <div class="tools">
-          <button class="btn sm icon" onclick={() => goTo(page - 1)} aria-label="Página anterior"><Icon name="up" size={15} /></button>
-          <span class="pgn"><input type="number" min="1" max={numPages} value={page} onchange={(e) => goTo(Number(e.currentTarget.value))} aria-label="Página" /> / {numPages}</span>
-          <button class="btn sm icon" onclick={() => goTo(page + 1)} aria-label="Página siguiente"><Icon name="down" size={15} /></button>
+          <button class="btn sm icon" onclick={() => goTo(page - 1)} aria-label={tt('Página anterior')}><Icon name="up" size={15} /></button>
+          <span class="pgn"><input type="number" min="1" max={numPages} value={page} onchange={(e) => goTo(Number(e.currentTarget.value))} aria-label={tt('Página')} /> / {numPages}</span>
+          <button class="btn sm icon" onclick={() => goTo(page + 1)} aria-label={tt('Página siguiente')}><Icon name="down" size={15} /></button>
           <span class="sep"></span>
-          <button class="btn sm icon" onclick={() => zoom(1 / 1.2)} aria-label="Alejar">−</button>
+          <button class="btn sm icon" onclick={() => zoom(1 / 1.2)} aria-label={tt('Alejar')}>−</button>
           <span class="zn">{Math.round(scale * 100)}%</span>
-          <button class="btn sm icon" onclick={() => zoom(1.2)} aria-label="Acercar">+</button>
-          <button class="btn sm" class:on={fit} onclick={() => { fit = true; refit(); }}>Ajustar</button>
+          <button class="btn sm icon" onclick={() => zoom(1.2)} aria-label={tt('Acercar')}>+</button>
+          <button class="btn sm" class:on={fit} onclick={() => { fit = true; refit(); }}>{tt('Ajustar')}</button>
         </div>
       {:else if kind === 'image'}
-        <div class="tools"><button class="btn sm icon" onclick={() => (imgZoom = Math.max(0.1, imgZoom / 1.25))} aria-label="Alejar">−</button><span class="zn">{Math.round(imgZoom * 100)}%</span><button class="btn sm icon" onclick={() => (imgZoom = Math.min(8, imgZoom * 1.25))} aria-label="Acercar">+</button><button class="btn sm" onclick={() => (imgZoom = 1)}>100%</button></div>
+        <div class="tools"><button class="btn sm icon" onclick={() => (imgZoom = Math.max(0.1, imgZoom / 1.25))} aria-label={tt('Alejar')}>−</button><span class="zn">{Math.round(imgZoom * 100)}%</span><button class="btn sm icon" onclick={() => (imgZoom = Math.min(8, imgZoom * 1.25))} aria-label={tt('Acercar')}>+</button><button class="btn sm" onclick={() => (imgZoom = 1)}>100%</button></div>
       {/if}
       <div class="right">
-        <button class="btn sm" onclick={() => fileOpen(viewer.file!.id).catch((e) => (error = String(e)))}><Icon name="external" size={14} /> Abrir con el sistema</button>
-        <button class="btn sm" onclick={() => fileReveal(viewer.file!.id).catch((e) => (error = String(e)))}>Carpeta</button>
-        <button class="btn ghost icon" onclick={closeViewer} aria-label="Cerrar visor"><Icon name="x" size={18} /></button>
+        <button class="btn sm" onclick={() => fileOpen(viewer.file!.id).catch((e) => (error = String(e)))}><Icon name="external" size={14} /> {tt('Abrir con el sistema')}</button>
+        <button class="btn sm" onclick={() => fileReveal(viewer.file!.id).catch((e) => (error = String(e)))}>{tt('Carpeta')}</button>
+        <button class="btn ghost icon" onclick={closeViewer} aria-label={tt('Cerrar visor')}><Icon name="x" size={18} /></button>
       </div>
     </header>
 
     <div class="body" bind:this={scroller} onscroll={onScroll} class:pdfbody={kind === 'pdf'}>
-      {#if loading}<div class="center muted"><span class="spin"></span> Cargando…</div>
+      {#if loading}<div class="center muted"><span class="spin"></span>{tt('Cargando…')}</div>
       {:else if error}<div class="center"><p class="msg err">{error}</p></div>
       {:else if kind === 'pdf'}
         <div class="pages">
@@ -134,17 +136,18 @@
       {:else if kind === 'csv'}
         <div class="tablewrap">
           <table><tbody>{#each rows as r, ri}<tr class:hd={ri === 0}>{#each r as c}{#if ri === 0}<th>{c}</th>{:else}<td>{c}</td>{/if}{/each}</tr>{/each}</tbody></table>
-          {#if truncated || rows.length >= 500}<p class="muted small">Se muestran las primeras 500 filas.</p>{/if}
+          {#if truncated || rows.length >= 500}<p class="muted small">{tt('Se muestran las primeras 500 filas.')}</p>{/if}
         </div>
       {:else if kind === 'text'}
-        <pre class="code">{text}</pre>{#if truncated}<p class="muted small pad">Se muestran los primeros 2 MB.</p>{/if}
+        <pre class="code">{text}</pre>{#if truncated}<p class="muted small pad">{tt('Se muestran los primeros 2 MB.')}</p>{/if}
       {:else}
-        <div class="center"><div class="card empty"><span class="ico tone-amber"><Icon name="file" size={24} /></span><h2>Este formato no se puede ver aquí</h2><p class="muted">El visor integrado admite PDF, imágenes, texto/código y CSV. Documentos de Office o comprimidos se abren con el programa del sistema.</p>
-          <button class="btn primary" onclick={() => fileOpen(viewer.file!.id)}><Icon name="external" size={15} /> Abrir con el sistema</button></div></div>
+        <div class="center"><div class="card empty"><span class="ico tone-amber"><Icon name="file" size={24} /></span><h2>{tt('Este formato no se puede ver aquí')}</h2><p class="muted">{tt('El visor integrado admite PDF, imágenes, texto/código y CSV. Documentos de Office o comprimidos se abren con el programa del sistema.')}</p>
+          <button class="btn primary" onclick={() => fileOpen(viewer.file!.id)}><Icon name="external" size={15} /> {tt('Abrir con el sistema')}</button></div></div>
       {/if}
     </div>
   </div>
 {/if}
+
 
 <style>
   .viewer { position: fixed; inset: 0; z-index: 150; display: flex; flex-direction: column; background: var(--bg); animation: fade .15s backwards; }

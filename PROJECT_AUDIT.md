@@ -1,5 +1,7 @@
 # PROJECT_AUDIT — AulaDesk (repo `moodledesk`)
 
+> **Nota 2026-11-11:** el árbol sucio de Drive que se menciona abajo ya se resolvió (commits `0.2.0`/`0.2.1`); la integración de Familias está implementada en la rama `integracion-familias` (ver `INTEGRATION_DESIGN.md` §0 bis y `CHANGELOG.md`). Este documento se conserva como foto de la Fase 0.
+
 Auditoría de la Fase 0. Fecha: 2026-11-09. **No se ha modificado código.** Solo se añaden `PROJECT_AUDIT.md` e `INTEGRATION_RESEARCH.md`.
 Todo lo de abajo sale de leer el código y los docs del repo; lo que no se ha comprobado se marca **(no verificado)**.
 

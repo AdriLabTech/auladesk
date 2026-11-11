@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tt } from '../lib/i18n.svelte';
   import { untrack } from 'svelte';
   import { taskSetFlags, noteSet, downloadActivity, moodleOpen, moodleNavigate, listFiles, type TaskRow, type FileRow } from '../lib/api';
   import { fmtDate, fmtSize } from '../lib/format';
@@ -31,53 +32,54 @@
 
   {#if error}<p class="msg err" role="alert">{error}</p>{/if}
   {#if notice}<p class="msg ok" role="status">{notice}</p>{/if}
-  <h3 class="sec">Descripción</h3>
+  <h3 class="sec">{tt('Descripción')}</h3>
   {#if t.intro_text}<div class="intro">{t.intro_text}</div>
-  {:else}<p class="muted small">Aún no se ha leído la descripción de esta tarea (sincroniza para traerla) o la tarea no tiene.</p>{/if}
+  {:else}<p class="muted small">{tt('Aún no se ha leído la descripción de esta tarea (sincroniza para traerla) o la tarea no tiene.')}</p>{/if}
   {#if links(t).length}
-    <ul class="links">{#each links(t) as l}<li><Icon name={l.file ? 'file' : 'link'} size={14} /><span>{l.name}</span>{#if !l.file}<code class="url" title={l.url}>{l.url}</code>{:else}<small class="muted">adjunto del profesorado</small>{/if}</li>{/each}</ul>
+    <ul class="links">{#each links(t) as l}<li><Icon name={l.file ? 'file' : 'link'} size={14} /><span>{l.name}</span>{#if !l.file}<code class="url" title={l.url}>{l.url}</code>{:else}<small class="muted">{tt('adjunto del profesorado')}</small>{/if}</li>{/each}</ul>
   {/if}
   {#if taskFiles.length}
-    <h3 class="sec">Archivos descargados</h3>
+    <h3 class="sec">{tt('Archivos descargados')}</h3>
     <ul class="links files">{#each taskFiles as f (f.id)}<li><Icon name="file" size={14} /><span>{f.original_name}</span><small class="muted">{fmtSize(f.size_bytes)}</small>
       <button class="btn sm" disabled={!f.exists} onclick={() => openViewer({ id: f.id, name: f.original_name })}>{kindOf(f.original_name) === 'none' ? 'Abrir' : 'Ver'}</button></li>{/each}</ul>
   {/if}
   {#if t.grade || t.feedback || t.grader}
-    <h3 class="sec">Calificación</h3>
-    <div class="gradebox">{#if t.grade}<b class="gv">{t.grade}</b>{/if}<div>{#if t.grader}<span class="muted small">Calificado por {t.grader}{t.graded_at ? ` · ${fmtDate(t.graded_at)}` : ''}</span>{/if}{#if t.feedback}<p class="fb">{t.feedback}</p>{/if}</div></div>
+    <h3 class="sec">{tt('Calificación')}</h3>
+    <div class="gradebox">{#if t.grade}<b class="gv">{t.grade}</b>{/if}<div>{#if t.grader}<span class="muted small">{tt('Calificado por')} {t.grader}{t.graded_at ? ` · ${fmtDate(t.graded_at)}` : ''}</span>{/if}{#if t.feedback}<p class="fb">{t.feedback}</p>{/if}</div></div>
   {/if}
-  <h3 class="sec">Estado y fechas</h3>
+  <h3 class="sec">{tt('Estado y fechas')}</h3>
   <dl>
-    <dt>Estado en Moodle</dt><dd>{t.submission_status ?? '—'}{t.grading_status ? ` · ${t.grading_status}` : ''}</dd>
-    {#if t.time_remaining_text}<dt>Tiempo</dt><dd>{t.time_remaining_text}</dd>{/if}
-    <dt>Apertura</dt><dd>{t.opens_at ? fmtDate(t.opens_at) : '—'}</dd>
-    <dt>Fecha límite</dt><dd>{t.due_at ? fmtDate(t.due_at) : 'Sin fecha: no se inventa ninguna'}</dd>
-    {#if t.last_modified_at}<dt>Última modificación</dt><dd>{fmtDate(t.last_modified_at)}</dd>{/if}
-    {#if submittedFiles(t).length}<dt>Enviado</dt><dd>{submittedFiles(t).map((f) => f.name).join(', ')}</dd>{/if}
-    {#if t.feedback}<dt>Comentarios</dt><dd>{t.feedback}</dd>{/if}
-    <dt>Enunciado local</dt><dd>{t.local_files ? `${t.local_files} archivo(s) descargado(s)` : 'sin descargar'}</dd>
-    {#if t.assign_synced_at}<dt>Leído de Moodle</dt><dd>{fmtDate(t.assign_synced_at)}</dd>{/if}
+    <dt>{tt('Estado en Moodle')}</dt><dd>{t.submission_status ?? '—'}{t.grading_status ? ` · ${t.grading_status}` : ''}</dd>
+    {#if t.time_remaining_text}<dt>{tt('Tiempo')}</dt><dd>{t.time_remaining_text}</dd>{/if}
+    <dt>{tt('Apertura')}</dt><dd>{t.opens_at ? fmtDate(t.opens_at) : '—'}</dd>
+    <dt>{tt('Fecha límite')}</dt><dd>{t.due_at ? fmtDate(t.due_at) : 'Sin fecha: no se inventa ninguna'}</dd>
+    {#if t.last_modified_at}<dt>{tt('Última modificación')}</dt><dd>{fmtDate(t.last_modified_at)}</dd>{/if}
+    {#if submittedFiles(t).length}<dt>{tt('Enviado')}</dt><dd>{submittedFiles(t).map((f) => f.name).join(', ')}</dd>{/if}
+    {#if t.feedback}<dt>{tt('Comentarios')}</dt><dd>{t.feedback}</dd>{/if}
+    <dt>{tt('Enunciado local')}</dt><dd>{t.local_files ? `${t.local_files} archivo(s) descargado(s)` : 'sin descargar'}</dd>
+    {#if t.assign_synced_at}<dt>{tt('Leído de Moodle')}</dt><dd>{fmtDate(t.assign_synced_at)}</dd>{/if}
   </dl>
   {#if rawRows(t).length}
-    <button class="btn ghost sm rawbtn" onclick={() => (showRaw = !showRaw)} aria-expanded={showRaw}><Icon name={showRaw ? 'up' : 'down'} size={14} /> Todos los datos tal cual los muestra Moodle</button>
+    <button class="btn ghost sm rawbtn" onclick={() => (showRaw = !showRaw)} aria-expanded={showRaw}><Icon name={showRaw ? 'up' : 'down'} size={14} /> {tt('Todos los datos tal cual los muestra Moodle')}</button>
     {#if showRaw}<div class="raw">{#each rawRows(t) as g}<h4>{g.group}</h4><dl>{#each g.rows as r}<dt>{r[0]}</dt><dd>{r[1]}</dd>{/each}</dl>{/each}</div>{/if}
   {/if}
-  <div class="prio-row"><span class="muted small">Prioridad personal</span>
-    <div class="seg" role="group" aria-label="Prioridad personal">{#each ['Ninguna', 'Baja', 'Media', 'Alta'] as l, i}<button class:on={t.priority === i} onclick={() => flag(t, { priority: i })}>{l}</button>{/each}</div>
+  <div class="prio-row"><span class="muted small">{tt('Prioridad personal')}</span>
+    <div class="seg" role="group" aria-label={tt('Prioridad personal')}>{#each ['Ninguna', 'Baja', 'Media', 'Alta'] as l, i}<button class:on={t.priority === i} onclick={() => flag(t, { priority: i })}>{l}</button>{/each}</div>
   </div>
   <div class="acts">
     <button class="btn sm" disabled={busy !== null} onclick={() => dl(t)}>{busy === t.id ? 'Descargando…' : 'Descargar enunciado'}</button>
-    <button class="btn sm" onclick={() => inMoodle(t)}>Ver en Moodle</button>
-    {#if t.can_submit !== 0 && submittedFiles(t).length}<button class="btn sm" onclick={() => inMoodle(t, true)} title="Abre el formulario oficial de edición de la entrega en Moodle">Modificar entrega en Moodle</button>{/if}
+    <button class="btn sm" onclick={() => inMoodle(t)}>{tt('Ver en Moodle')}</button>
+    {#if t.can_submit !== 0 && submittedFiles(t).length}<button class="btn sm" onclick={() => inMoodle(t, true)} title={tt('Abre el formulario oficial de edición de la entrega en Moodle')}>{tt('Modificar entrega en Moodle')}</button>{/if}
     <button class="btn sm" onclick={() => flag(t, { favorite: !t.favorite })}>{t.favorite ? 'Quitar favorita' : 'Marcar favorita'}</button>
     <button class="btn sm" onclick={() => flag(t, { doneLocal: !t.done_local })}>{t.done_local ? 'Desmarcar «hecha»' : 'Marcar «hecha» (solo local)'}</button>
   </div>
-  <label class="note">Nota personal
-    <textarea rows="2" bind:value={noteDraft} placeholder="Solo en tu equipo, Moodle no la ve"></textarea>
+  <label class="note">{tt('Nota personal')}
+    <textarea rows="2" bind:value={noteDraft} placeholder={tt('Solo en tu equipo, Moodle no la ve')}></textarea>
   </label>
-  <button class="btn sm" onclick={() => saveNote(t)}>Guardar nota</button>
-  <h3>Mi entrega</h3>
+  <button class="btn sm" onclick={() => saveNote(t)}>{tt('Guardar nota')}</button>
+  <h3>{tt('Mi entrega')}</h3>
   <Versions activityId={t.id} canPrepare={t.can_submit !== 0} hasSubmission={submittedFiles(t).length > 0} onChange={onChange} />
+
 
 <style>
   h3 { font-size: 13px; margin: 20px 0 8px; } h3.sec { font-family: var(--font-display); font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); margin: 18px 0 8px; }

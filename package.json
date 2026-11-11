@@ -2,13 +2,14 @@
   "name": "auladesk",
   "private": true,
   "license": "MIT",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "node --experimental-strip-types --test tests/"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-grades"
+description = "Enables the familias_grades command without any pre-configured scope."
+commands.allow = ["familias_grades"]
+
+[[permission]]
+identifier = "deny-familias-grades"
+description = "Denies the familias_grades command without any pre-configured scope."
+commands.deny = ["familias_grades"]

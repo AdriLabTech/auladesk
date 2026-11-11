@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t as tt } from './i18n.svelte';
+  import { trapFocus } from './a11y';
   import { scheduleCreate, type VersionRow } from './api';
   import { fmtDate, fmtSize } from './format';
 
@@ -9,7 +11,7 @@
   let when = $state(defaultWhen());
   let agree = $state(false); let error = $state(''); let busy = $state(false);
   const runAt = $derived(Math.floor(new Date(when).getTime() / 1000));
-  const problem = $derived(!Number.isFinite(runAt) ? 'Elige fecha y hora.' : runAt < Math.floor(Date.now() / 1000) + 60 ? 'La hora debe estar en el futuro.' : version.deadline_at && runAt > version.deadline_at ? 'Es posterior al cierre de la tarea.' : '');
+  const problem = $derived(!Number.isFinite(runAt) ? tt('Elige fecha y hora.') : runAt < Math.floor(Date.now() / 1000) + 60 ? tt('La hora debe estar en el futuro.') : version.deadline_at && runAt > version.deadline_at ? tt('Es posterior al cierre de la tarea.') : '');
 
   async function save() {
     if (problem || !agree) return;
@@ -18,26 +20,27 @@
   }
 </script>
 
-<div class="overlay" role="dialog" aria-modal="true" aria-label="Programar la entrega">
+<div class="overlay" role="dialog" use:trapFocus aria-modal="true" aria-label={tt('Programar la entrega')}>
   <div class="modal card">
     <h2>Programar «{version.activity_name}»</h2>
     <p class="muted small">{version.course_name}{version.deadline_at ? ` · plazo ${fmtDate(version.deadline_at)}` : ' · sin fecha límite conocida'}</p>
     <div class="sendbox">
-      <div><span class="muted small">Archivo</span><b>{version.file_name}</b></div>
-      <div><span class="muted small">Tamaño</span><b>{fmtSize(version.size_bytes)}</b></div>
-      <div><span class="muted small">SHA-256</span><code title={version.sha256}>{version.sha256.slice(0, 24)}…</code></div>
+      <div><span class="muted small">{tt('Archivo')}</span><b>{version.file_name}</b></div>
+      <div><span class="muted small">{tt('Tamaño')}</span><b>{fmtSize(version.size_bytes)}</b></div>
+      <div><span class="muted small">{tt('SHA-256')}</span><code title={version.sha256}>{version.sha256.slice(0, 24)}…</code></div>
     </div>
-    <label class="when">Intentar entregar el <input type="datetime-local" bind:value={when} /></label>
+    <label class="when">{tt('Intentar entregar el')} <input type="datetime-local" bind:value={when} /></label>
     {#if problem}<p class="msg err" role="alert">{problem}</p>{/if}
-    <p class="muted small">A esa hora AulaDesk subirá <b>exactamente este archivo</b> y comprobará con Moodle que el SHA-256 coincide. Necesita <b>la app abierta (o en la bandeja) y la sesión de Moodle iniciada</b>: la sesión caduca tras 8 h sin uso. Si no hay sesión, reintenta cada 10 min (máx. 3 intentos) hasta el cierre y te avisa. No entrega si el archivo cambia, si la entrega ya tiene archivos o si el plazo ha cerrado.</p>
-    <label class="agree"><input type="checkbox" bind:checked={agree} /> Entiendo que a esa hora AulaDesk <b>enviará mi trabajo a Moodle sin pedirme nada más</b>.</label>
+    <p class="muted small">{tt('A esa hora AulaDesk subirá')} <b>{tt('exactamente este archivo')}</b> {tt('y comprobará con Moodle que el SHA-256 coincide. Necesita')} <b>{tt('la app abierta (o en la bandeja) y la sesión de Moodle iniciada')}</b>{tt(': la sesión caduca tras 8 h sin uso. Si no hay sesión, reintenta cada 10 min (máx. 3 intentos) hasta el cierre y te avisa. No entrega si el archivo cambia, si la entrega ya tiene archivos o si el plazo ha cerrado.')}</p>
+    <label class="agree"><input type="checkbox" bind:checked={agree} /> {tt('Entiendo que a esa hora AulaDesk')} <b>{tt('enviará mi trabajo a Moodle sin pedirme nada más')}</b>.</label>
     {#if error}<p class="msg err" role="alert">{error}</p>{/if}
     <div class="acts">
       <button class="btn primary" disabled={!agree || !!problem || busy} onclick={save}>{busy ? 'Programando…' : 'Programar entrega'}</button>
-      <button class="btn" onclick={onCancel}>Cancelar</button>
+      <button class="btn" onclick={onCancel}>{tt('Cancelar')}</button>
     </div>
   </div>
 </div>
+
 
 <style>
   .overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; z-index: 95; padding: 20px; animation: fade .2s backwards; }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-close"
+description = "Enables the familias_close command without any pre-configured scope."
+commands.allow = ["familias_close"]
+
+[[permission]]
+identifier = "deny-familias-close"
+description = "Denies the familias_close command without any pre-configured scope."
+commands.deny = ["familias_close"]

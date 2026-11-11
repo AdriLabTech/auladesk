@@ -4,9 +4,13 @@ use tauri::webview::{DownloadEvent, PageLoadPayload};
 use tauri::{AppHandle, Emitter, Manager, Url, Webview, WebviewUrl};
 
 #[cfg(target_os = "linux")]
-mod embedded;
+pub(crate) mod embedded;
 
 pub const LABEL: &str = "moodle";
+const WORKER_PREFIX: &str = "moodle-w";
+pub fn worker_label(i: usize) -> String { format!("{WORKER_PREFIX}{i}") }
+/// Índice de una ventana de lectura en paralelo, si `label` es una de ellas.
+pub fn worker_index(label: &str) -> Option<usize> { label.strip_prefix(WORKER_PREFIX)?.parse().ok().filter(|i| *i < crate::state::WORKERS) }
 pub const DEFAULT_BASE: &str = "https://educacionadistancia.juntadeandalucia.es/centros/cordoba/";
 const BRIDGE: &str = include_str!("../../selectors/bridge.js");
 
@@ -30,7 +34,7 @@ pub fn get(app: &AppHandle) -> Option<Webview> { app.get_webview(LABEL) }
 /// Muestra u oculta Moodle. Oculto sigue cargando y sincronizando; visible es para iniciar sesión o terminar algo a mano.
 pub fn set_visible(app: &AppHandle, visible: bool) {
     #[cfg(target_os = "linux")]
-    embedded::set_visible(app, visible);
+    embedded::set_visible(app, LABEL, visible);
     #[cfg(not(target_os = "linux"))]
     if let Some(w) = app.get_webview_window(LABEL) {
         if visible { let _ = w.show(); let _ = w.set_focus(); } else { let _ = w.hide(); }
@@ -86,6 +90,10 @@ fn handle_title(t: &str) {
 fn handle_load(app: &AppHandle, w: &Webview, p: &PageLoadPayload<'_>) {
     // Solo host+ruta: nunca query ni fragmento (pueden llevar tokens).
     let u = p.url();
+    if let Some(i) = worker_index(w.label()) {
+        if matches!(p.event(), tauri::webview::PageLoadEvent::Finished) { app.state::<crate::state::AppState>().worker_loads[i].send_modify(|n| *n += 1); }
+        return;
+    }
     tracing::info!("moodle página {:?}: {}{}", p.event(), u.host_str().unwrap_or(""), u.path());
     let _ = app.emit("moodle-page", u.path().to_string());
     if matches!(p.event(), tauri::webview::PageLoadEvent::Finished) {
@@ -98,6 +106,18 @@ fn handle_load(app: &AppHandle, w: &Webview, p: &PageLoadPayload<'_>) {
 #[cfg(target_os = "linux")]
 pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) -> AppResult<()> {
     embedded::open(app, data_dir, visible).await
+}
+
+/// Ventanas de lectura en paralelo: solo Linux. En el resto se sincroniza con la ventana principal sola.
+#[cfg(target_os = "linux")]
+pub async fn open_worker(app: &AppHandle, data_dir: &std::path::Path, i: usize) -> AppResult<Webview> { embedded::open_worker(app, data_dir, i).await }
+#[cfg(not(target_os = "linux"))]
+pub async fn open_worker(_app: &AppHandle, _data_dir: &std::path::Path, _i: usize) -> AppResult<Webview> { Err(AppError::Other("lectura en paralelo no disponible en esta plataforma".into())) }
+pub fn close_worker(app: &AppHandle, i: usize) {
+    #[cfg(target_os = "linux")]
+    embedded::close_worker(app, i);
+    #[cfg(not(target_os = "linux"))]
+    if let Some(w) = app.get_webview(&worker_label(i)) { let _ = w.close(); }
 }
 
 /// Resto de plataformas: ventana propia con almacén de cookies persistente.

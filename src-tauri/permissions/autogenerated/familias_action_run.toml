@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-action-run"
+description = "Enables the familias_action_run command without any pre-configured scope."
+commands.allow = ["familias_action_run"]
+
+[[permission]]
+identifier = "deny-familias-action-run"
+description = "Denies the familias_action_run command without any pre-configured scope."
+commands.deny = ["familias_action_run"]

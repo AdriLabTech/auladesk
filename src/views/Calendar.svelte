@@ -1,13 +1,19 @@
 <script lang="ts">
+  import { t as tt } from '../lib/i18n.svelte';
   import { onMount } from 'svelte';
-  import { calendarList, calendarCreate, calendarUpdate, calendarDelete, calendarSetNotes, type EventRow, type NewEvent } from '../lib/api';
+  import { calendarList, calendarCreate, calendarUpdate, calendarDelete, calendarSetNotes, getSetting, setSetting, type EventRow, type NewEvent } from '../lib/api';
   import Icon from '../lib/Icon.svelte';
   import { eventKinds, personalKinds, fmtTime, fmtDay, startOfDay, addDays, ts, mondayOf, sameDay } from '../lib/format';
 
   type View = 'month' | 'week' | 'day' | 'agenda';
   let view = $state<View>('month');
   let cursor = $state(startOfDay(new Date()));
-  let events = $state<EventRow[]>([]);
+  let all = $state<EventRow[]>([]);
+  let hidden = $state<string[]>([]);
+  // Filtro por plataforma; los eventos personales no pertenecen a ninguna y se ven siempre.
+  const events = $derived(all.filter((e) => !hidden.includes(e.source)));
+  const srcLabel: Record<string, string> = $derived({ moodle: 'Moodle', familias: tt('Familias'), personal: tt('Personal') });
+  async function toggle(p: string) { hidden = hidden.includes(p) ? hidden.filter((x) => x !== p) : [...hidden, p]; try { await setSetting('calendar_filters', hidden.join(',')); } catch (e) { error = String(e); } }
   let error = $state('');
   let sel = $state<EventRow | null>(null);
   let notes = $state('');
@@ -22,10 +28,10 @@
   });
   const title = $derived(view === 'month' ? cursor.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
     : view === 'week' ? `Semana del ${range[0].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
-    : view === 'day' ? cursor.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Próximos 60 días');
+    : view === 'day' ? cursor.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : tt('Próximos 60 días'));
 
-  async function load() { try { events = await calendarList(ts(range[0]), ts(range[1])); } catch (e) { error = String(e); } }
-  onMount(load);
+  async function load() { try { all = await calendarList(ts(range[0]), ts(range[1])); } catch (e) { error = String(e); } }
+  onMount(() => { getSetting('calendar_filters').then((v) => { hidden = v ? v.split(',').filter(Boolean) : []; }).catch(() => {}); load(); });
   $effect(() => { range; load(); });
 
   function move(dir: number) {
@@ -63,21 +69,22 @@
 </script>
 
 <div class="head">
-  <h1>Calendario</h1>
+  <h1>{tt('Calendario')}</h1>
   <div class="tools">
-    <div class="seg" role="group" aria-label="Vista">
+    <div class="seg" role="group" aria-label={tt('Vista')}>
       {#each [['month', 'Mes'], ['week', 'Semana'], ['day', 'Día'], ['agenda', 'Agenda']] as [v, l]}
         <button class:on={view === v} onclick={() => (view = v as View)}>{l}</button>
       {/each}
     </div>
-    <button class="btn sm" onclick={() => move(-1)} aria-label="Anterior"><Icon name="left" size={15} /></button>
+    <button class="btn sm" onclick={() => move(-1)} aria-label={tt('Anterior')}><Icon name="left" size={15} /></button>
     <button class="btn sm" onclick={() => (cursor = startOfDay(new Date()))}>Hoy</button>
-    <button class="btn sm" onclick={() => move(1)} aria-label="Siguiente"><Icon name="right" size={15} /></button>
-    <button class="btn primary sm" onclick={() => newEvent()}><Icon name="plus" size={15} /> Evento personal</button>
+    <button class="btn sm" onclick={() => move(1)} aria-label={tt('Siguiente')}><Icon name="right" size={15} /></button>
+    <button class="btn primary sm" onclick={() => newEvent()}><Icon name="plus" size={15} /> {tt('Evento personal')}</button>
   </div>
 </div>
 <h2 class="when">{title}</h2>
-<p class="legend"><i class="d blue"></i>Entrega <i class="d red"></i>Examen <i class="d violet"></i>Cuestionario <i class="d teal"></i>Curso <i class="d amber"></i>Personal · Los de Moodle no se modifican desde aquí.</p>
+<div class="pf" role="group" aria-label={tt('Plataformas')}><button class="pfc" class:on={!hidden.includes('moodle')} aria-pressed={!hidden.includes('moodle')} onclick={() => toggle('moodle')}>{tt('Moodle')}</button><button class="pfc" class:on={!hidden.includes('familias')} aria-pressed={!hidden.includes('familias')} onclick={() => toggle('familias')}>{tt('Familias')}</button></div>
+<p class="legend"><i class="d blue"></i>Entrega <i class="d red"></i>Examen <i class="d violet"></i>Cuestionario <i class="d teal"></i>{tt('Curso')} <i class="d amber"></i>{tt('Personal')} <i class="d green"></i>{tt('Tutoría · Los de Moodle y Familias no se modifican desde aquí.')}</p>
 {#if error}<p class="msg err" role="alert">{error}</p>{/if}
 
 <div class="layout">
@@ -92,21 +99,21 @@
             {#each ev.slice(0, view === 'week' ? 12 : 3) as e (e.id)}
               <button class="chip t-{tone(e)}" class:cancel={e.cancelled_at} class:done={done(e)} onclick={() => open(e)} title={e.title}>{e.all_day ? '' : fmtTime(e.starts_at) + ' '}{e.title}</button>
             {/each}
-            {#if view === 'month' && ev.length > 3}<button class="more" onclick={() => { cursor = d; view = 'day'; }}>+{ev.length - 3} más</button>{/if}
+            {#if view === 'month' && ev.length > 3}<button class="more" onclick={() => { cursor = d; view = 'day'; }}>{tt('+{n} más', { n: ev.length - 3 })}</button>{/if}
           </div>
         {/each}
       </div>
     {:else if view === 'day'}
       {#each dayEvents(cursor) as e (e.id)}
-        <button class="row t-{tone(e)}" class:cancel={e.cancelled_at} onclick={() => open(e)}><b>{e.all_day ? 'Todo el día' : fmtTime(e.starts_at)}</b><span>{e.title}</span><small>{e.course_name ?? (e.source === 'personal' ? 'Personal' : '')}</small></button>
-      {:else}<p class="muted">Sin eventos este día.</p>{/each}
+        <button class="row t-{tone(e)}" class:cancel={e.cancelled_at} onclick={() => open(e)}><b>{e.all_day ? 'Todo el día' : fmtTime(e.starts_at)}</b><span>{e.title}</span><small>{srcLabel[e.source] ?? e.source} · {e.course_name ?? e.student_name ?? ''}</small></button>
+      {:else}<p class="muted">{tt('Sin eventos este día.')}</p>{/each}
     {:else}
       {#each agenda as [k, list] (k)}
         <h3 class="ag">{fmtDay(new Date(k).getTime() / 1000)}</h3>
         {#each list as e (e.id)}
-          <button class="row t-{tone(e)}" class:cancel={e.cancelled_at} onclick={() => open(e)}><b>{e.all_day ? 'Todo el día' : fmtTime(e.starts_at)}</b><span>{e.title}</span><small>{e.course_name ?? (e.source === 'personal' ? 'Personal' : '')}</small></button>
+          <button class="row t-{tone(e)}" class:cancel={e.cancelled_at} onclick={() => open(e)}><b>{e.all_day ? 'Todo el día' : fmtTime(e.starts_at)}</b><span>{e.title}</span><small>{srcLabel[e.source] ?? e.source} · {e.course_name ?? e.student_name ?? ''}</small></button>
         {/each}
-      {:else}<p class="muted">No hay eventos en los próximos 60 días.</p>{/each}
+      {:else}<p class="muted">{tt('No hay eventos en los próximos 60 días.')}</p>{/each}
     {/if}
   </div>
 
@@ -114,34 +121,35 @@
     <aside class="card side">
       {#if sel}
         <h2>{sel.title}</h2>
-        <p class="muted">{eventKinds[sel.kind]?.label ?? sel.kind} · {sel.source === 'moodle' ? 'Moodle (solo lectura)' : 'Personal'}</p>
+        <p class="muted">{eventKinds[sel.kind]?.label ?? sel.kind} · {sel.source === 'moodle' ? tt('Moodle (solo lectura)') : sel.source === 'familias' ? `${tt('Familias (solo lectura)')}${sel.student_name ? ' · ' + sel.student_name : ''}` : tt('Personal')}</p>
         <p>{fmtDay(sel.starts_at)}{sel.all_day ? '' : ', ' + fmtTime(sel.starts_at)}{sel.ends_at ? ' – ' + fmtTime(sel.ends_at) : ''}</p>
         {#if sel.course_name}<p class="muted">{sel.course_name}</p>{/if}
-        {#if sel.activity_state}<p>Estado de la tarea: <b>{sel.activity_state.replace('_', ' ')}</b></p>{/if}
-        {#if sel.cancelled_at}<p class="warn">Este evento ya no existe en Moodle (se conserva el registro).</p>{/if}
+        {#if sel.activity_state}<p>{tt('Estado de la tarea:')} <b>{sel.activity_state.replace('_', ' ')}</b></p>{/if}
+        {#if sel.cancelled_at}<p class="warn">{tt('Este evento ya no existe en {p} (se conserva el registro).', { p: srcLabel[sel.source] ?? tt('su plataforma') })}</p>{/if}
         {#if sel.remind_min !== null}<p class="muted">Aviso {sel.remind_min} min antes</p>{/if}
-        <label class="f">Mis notas<textarea rows="3" bind:value={notes} placeholder="Solo en tu equipo"></textarea></label>
+        <label class="f">{tt('Mis notas')}<textarea rows="3" bind:value={notes} placeholder={tt('Solo en tu equipo')}></textarea></label>
         <div class="acts">
-          <button class="btn sm" onclick={saveNotes}>Guardar notas</button>
-          {#if sel.source === 'personal'}<button class="btn sm" onclick={() => editEvent(sel!)}>Editar</button><button class="btn sm danger" onclick={() => remove(sel!)}>Borrar</button>{/if}
-          <button class="btn sm" onclick={() => (sel = null)}>Cerrar</button>
+          <button class="btn sm" onclick={saveNotes}>{tt('Guardar notas')}</button>
+          {#if sel.source === 'personal'}<button class="btn sm" onclick={() => editEvent(sel!)}>{tt('Editar')}</button><button class="btn sm danger" onclick={() => remove(sel!)}>{tt('Borrar')}</button>{/if}
+          <button class="btn sm" onclick={() => (sel = null)}>{tt('Cerrar')}</button>
         </div>
       {:else if form}
         <h2>{form.id === null ? 'Nuevo evento personal' : 'Editar evento'}</h2>
-        <label class="f">Título<input bind:value={form.title} /></label>
-        <label class="f">Tipo<select bind:value={form.kind}>{#each personalKinds as k}<option value={k}>{eventKinds[k].label}</option>{/each}</select></label>
-        <label class="f">Fecha<input type="date" bind:value={form.date} /></label>
-        <label class="chk"><input type="checkbox" bind:checked={form.allDay} /> Todo el día</label>
+        <label class="f">{tt('Título')}<input bind:value={form.title} /></label>
+        <label class="f">{tt('Tipo')}<select bind:value={form.kind}>{#each personalKinds as k}<option value={k}>{eventKinds[k].label}</option>{/each}</select></label>
+        <label class="f">{tt('Fecha')}<input type="date" bind:value={form.date} /></label>
+        <label class="chk"><input type="checkbox" bind:checked={form.allDay} /> {tt('Todo el día')}</label>
         {#if !form.allDay}
-          <div class="two"><label class="f">Hora<input type="time" bind:value={form.time} /></label><label class="f">Fin (opcional)<input type="time" bind:value={form.endTime} /></label></div>
-          <label class="f">Avisar antes<select bind:value={form.remind}><option value="">Sin aviso</option><option value="0">A la hora</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hora</option><option value="1440">1 día</option></select></label>
+          <div class="two"><label class="f">{tt('Hora')}<input type="time" bind:value={form.time} /></label><label class="f">{tt('Fin (opcional)')}<input type="time" bind:value={form.endTime} /></label></div>
+          <label class="f">{tt('Avisar antes')}<select bind:value={form.remind}><option value="">{tt('Sin aviso')}</option><option value="0">{tt('A la hora')}</option><option value="15">{tt('15 min')}</option><option value="30">{tt('30 min')}</option><option value="60">{tt('1 hora')}</option><option value="1440">{tt('1 día')}</option></select></label>
         {/if}
-        <label class="f">Notas<textarea rows="2" bind:value={form.notes}></textarea></label>
-        <div class="acts"><button class="btn primary sm" onclick={save}>Guardar</button><button class="btn sm" onclick={() => (form = null)}>Cancelar</button></div>
+        <label class="f">{tt('Notas')}<textarea rows="2" bind:value={form.notes}></textarea></label>
+        <div class="acts"><button class="btn primary sm" onclick={save}>{tt('Guardar')}</button><button class="btn sm" onclick={() => (form = null)}>{tt('Cancelar')}</button></div>
       {/if}
     </aside>
   {/if}
 </div>
+
 
 <style>
   .head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; } .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -166,4 +174,6 @@
   .ag { font-size: 12px; text-transform: capitalize; margin: 20px 0 8px; color: var(--accent); font-weight: 700; letter-spacing: .04em; }
   .side { align-self: start; animation: pop .35s var(--ease-spring) backwards; } .side h2 { overflow-wrap: anywhere; font-size: 17px; } .warn { color: var(--warn); }
   .chk { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 8px 0; } .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .pf { display: flex; gap: 6px; margin: 0 0 10px; }
+  .pfc { display: inline-flex; align-items: center; background: transparent; border: 1px solid var(--line-strong); border-radius: 99px; padding: 4px 13px; color: var(--muted); font-weight: 550; transition: all .15s var(--ease); } .pfc:hover { color: var(--text); border-color: var(--accent-line); } .pfc.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 </style>

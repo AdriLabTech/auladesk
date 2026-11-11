@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tt } from '../lib/i18n.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { listCourses, courseTree, courseCover, downloadActivity, downloadCourse, taskList, type CourseRow, type ActivityRow, type TaskRow } from '../lib/api';
@@ -27,7 +28,7 @@
   let drawerId = $state<number | null>(null);
   const drawerTask = $derived(drawerId === null ? null : courseTasks[drawerId] ?? null);
   async function loadTasks() { try { courseTasks = Object.fromEntries((await taskList()).map((t) => [t.id, t])); } catch { /* sin datos aún */ } }
-  function openTask(id: number) { if (courseTasks[id]) drawerId = id; else error = 'Sincroniza en «Moodle / Conexión» para ver los detalles de esta tarea.'; }
+  function openTask(id: number) { if (courseTasks[id]) drawerId = id; else error = tt('Sincroniza en «Moodle / Conexión» para ver los detalles de esta tarea.'); }
   onMount(async () => {
     loadTasks();
     unlisten.push(await listen<typeof progress>('download-progress', (e) => (progress = e.payload)));
@@ -100,14 +101,14 @@
     <header class="hero">
       {@render cover(open, 'hero-bg')}
       <div class="hero-in">
-        <button class="btn" onclick={() => (open = null)}><Icon name="left" size={15} /> Asignaturas</button>
+        <button class="btn" onclick={() => (open = null)}><Icon name="left" size={15} /> {tt('Asignaturas')}</button>
         <h1>{open.fullname}</h1>
         <div class="stats">
-          <span><b>{open.sections}</b> temas</span><span><b>{counts.assign}</b> tareas</span><span><b>{counts.files}</b> archivos de Moodle</span><span><b>{open.files}</b> descargados</span>
+          <span><b>{open.sections}</b> {tt('temas')}</span><span><b>{counts.assign}</b> {tt('tareas')}</span><span><b>{counts.files}</b> {tt('archivos de Moodle')}</span><span><b>{open.files}</b> {tt('descargados')}</span>
         </div>
         <div class="actions">
           <button class="btn primary" disabled={busy !== null} onclick={() => dlAll(true)}>{busy === 'course' ? 'Descargando…' : 'Descargar lo que falta'}</button>
-          <button class="btn" disabled={busy !== null} onclick={() => dlAll(false)}>Descargar todo de nuevo</button>
+          <button class="btn" disabled={busy !== null} onclick={() => dlAll(false)}>{tt('Descargar todo de nuevo')}</button>
           {#if busy === 'course' && progress}<span class="muted">{progress.done}/{progress.total}{progress.current ? ` · ${progress.current}` : ''}</span>{/if}
         </div>
       </div>
@@ -117,19 +118,19 @@
     {#if notice}<p class="msg ok" role="status">{notice}</p>{/if}
 
     <div class="toolbar">
-      <div class="chips" role="group" aria-label="Filtrar por tipo">
-        <button class="chip" class:on={filter === 'all'} onclick={() => (filter = 'all')}>Todo <i>{items.length}</i></button>
-        <button class="chip" class:on={filter === 'assign'} onclick={() => (filter = 'assign')}>Tareas <i>{counts.assign}</i></button>
-        <button class="chip" class:on={filter === 'files'} onclick={() => (filter = 'files')}>Archivos <i>{counts.files}</i></button>
-        <button class="chip" class:on={filter === 'quiz'} onclick={() => (filter = 'quiz')}>Cuestionarios <i>{counts.quiz}</i></button>
-        <button class="chip" class:on={filter === 'forum'} onclick={() => (filter = 'forum')}>Foros <i>{counts.forum}</i></button>
+      <div class="chips" role="group" aria-label={tt('Filtrar por tipo')}>
+        <button class="chip" class:on={filter === 'all'} onclick={() => (filter = 'all')}>{tt('Todo')} <i>{items.length}</i></button>
+        <button class="chip" class:on={filter === 'assign'} onclick={() => (filter = 'assign')}>{tt('Tareas')} <i>{counts.assign}</i></button>
+        <button class="chip" class:on={filter === 'files'} onclick={() => (filter = 'files')}>{tt('Archivos')} <i>{counts.files}</i></button>
+        <button class="chip" class:on={filter === 'quiz'} onclick={() => (filter = 'quiz')}>{tt('Cuestionarios')} <i>{counts.quiz}</i></button>
+        <button class="chip" class:on={filter === 'forum'} onclick={() => (filter = 'forum')}>{tt('Foros')} <i>{counts.forum}</i></button>
       </div>
-      <input class="find" type="search" placeholder="Buscar en este curso…" bind:value={query} aria-label="Buscar en el curso" />
+      <input class="find" type="search" placeholder={tt('Buscar en este curso…')} bind:value={query} aria-label={tt('Buscar en el curso')} />
     </div>
 
     <div class="layout">
-      <nav class="toc" aria-label="Temas">
-        <h2>Temas</h2>
+      <nav class="toc" aria-label={tt('Temas')}>
+        <h2>{tt('Temas')}</h2>
         {#each groups as [pos, g] (pos)}
           <button class="toc-item" class:dim={g.rows.length === 0} onclick={() => jump(pos)}>
             <span class="toc-n">{pos === 0 ? '·' : pos}</span><span class="toc-t">{g.name}</span><i>{g.rows.length}</i>
@@ -141,7 +142,7 @@
           {#if g.rows.length || (filter === 'all' && !query.trim())}
             <section class="sec" id="tema-{pos}">
               <button class="sec-head" onclick={() => (collapsed[pos] = !collapsed[pos])} aria-expanded={!collapsed[pos]}>
-                <span class="sec-n">{pos === 0 ? 'General' : `Tema ${pos}`}</span>
+                <span class="sec-n">{pos === 0 ? tt('General') : tt('Tema {n}', { n: pos })}</span>
                 <span class="sec-t">{g.name}</span>
                 <span class="sec-meta">{#if nTasks(g.all)}<em>{nTasks(g.all)} tarea{nTasks(g.all) > 1 ? 's' : ''}</em>{/if}{g.all.length} elem.</span>
                 <span class="caret" class:shut={collapsed[pos]}><Icon name="down" size={16} /></span>
@@ -154,37 +155,37 @@
                       <span class="ico tone-{m.tone}" title={m.label} aria-hidden="true"><Icon name={m.glyph} size={16} /></span>
                       {#if r.modname === 'assign'}
                         {@const tk = courseTasks[r.id]}
-                        <button class="name namebtn" onclick={() => openTask(r.id)} title="Ver descripción, detalles y entregar">
+                        <button class="name namebtn" onclick={() => openTask(r.id)} title={tt('Ver descripción, detalles y entregar')}>
                           <span>{r.name}</span>
                           <small class="muted">{m.label + (tk?.due_at ? ' · vence ' + fmtDue(tk.due_at) : '')}</small>
                         </button>
                         {#if tk}<span class="badge b-{stateInfo[tk.state].tone}">{stateInfo[tk.state].label}</span>{/if}
-                        <button class="btn sm primary" onclick={() => openTask(r.id)}>Detalle y entrega</button>
+                        <button class="btn sm primary" onclick={() => openTask(r.id)}>{tt('Detalle y entrega')}</button>
                       {:else}
                         <div class="name"><span>{r.name}</span><small class="muted">{m.label}</small></div>
                       {/if}
                       {#if downloadable(r.modname)}
-                        {#if r.files > 0}<span class="have" title="Ya está en tu biblioteca">✓ {r.files} descargado{r.files > 1 ? 's' : ''}</span>{/if}
+                        {#if r.files > 0}<span class="have" title={tt('Ya está en tu biblioteca')}>✓ {r.files} descargado{r.files > 1 ? 's' : ''}</span>{/if}
                         <button class="btn sm" disabled={busy !== null} onclick={() => dl(r)}>{busy === r.id ? 'Descargando…' : r.files > 0 ? 'Actualizar' : 'Descargar'}</button>
                       {/if}
                     </li>
                   {/each}
-                  {#if g.rows.length === 0}<li class="row muted">Sin elementos con este filtro.</li>{/if}
+                  {#if g.rows.length === 0}<li class="row muted">{tt('Sin elementos con este filtro.')}</li>{/if}
                 </ul>
               {/if}
             </section>
           {/if}
         {:else}
-          <p class="muted">Este curso aún no tiene contenido sincronizado.</p>
+          <p class="muted">{tt('Este curso aún no tiene contenido sincronizado.')}</p>
         {/each}
       </div>
     </div>
   </div>
 {:else}
-  <div><h1>Mis asignaturas</h1><p class="muted sub">{courses.length} asignatura{courses.length === 1 ? '' : 's'} sincronizada{courses.length === 1 ? '' : 's'} · pulsa una para ver sus temas y archivos</p>
+  <div><h1>{tt('Mis asignaturas')}</h1><p class="muted sub">{tt(courses.length === 1 ? '{n} asignatura sincronizada · púlsala para ver sus temas y archivos' : '{n} asignaturas sincronizadas · pulsa una para ver sus temas y archivos', { n: courses.length })}</p>
   {#if error}<p class="msg err" role="alert">{error}</p>{/if}
   {#if loaded && courses.length === 0}
-    <div class="card empty"><span class="ico tone-blue"><Icon name="courses" size={24} /></span><h2>Aún no hay asignaturas</h2><p class="muted">Ve a «Moodle / Conexión», inicia sesión y pulsa «Sincronizar ahora».</p></div>
+    <div class="card empty"><span class="ico tone-blue"><Icon name="courses" size={24} /></span><h2>{tt('Aún no hay asignaturas')}</h2><p class="muted">{tt('Ve a «Moodle / Conexión», inicia sesión y pulsa «Sincronizar ahora».')}</p></div>
   {/if}
   <div class="grid">
     {#each courses as c (c.id)}
@@ -192,8 +193,8 @@
         {@render cover(c, 'ccover')}
         <div class="cbody">
           <strong>{c.fullname}</strong>
-          <div class="pills"><span>{c.sections} temas</span><span>{c.assignments} tareas</span><span>{c.files} archivos</span></div>
-          <span class="muted small">Sincronizado: {fmtDate(c.last_synced_at)}</span>
+          <div class="pills"><span>{c.sections} {tt('temas')}</span><span>{c.assignments} {tt('tareas')}</span><span>{c.files} archivos</span></div>
+          <span class="muted small">{tt('Sincronizado:')} {fmtDate(c.last_synced_at)}</span>
         </div>
       </button>
     {/each}
@@ -204,6 +205,7 @@
 {#if drawerTask}
   <TaskDrawer task={drawerTask} onClose={() => (drawerId = null)} onChange={async () => { await loadTasks(); await reload(); }} />
 {/if}
+
 
 <style>
   .sub { margin: 4px 0 0; }

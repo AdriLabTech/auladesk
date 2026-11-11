@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-overview"
+description = "Enables the familias_overview command without any pre-configured scope."
+commands.allow = ["familias_overview"]
+
+[[permission]]
+identifier = "deny-familias-overview"
+description = "Denies the familias_overview command without any pre-configured scope."
+commands.deny = ["familias_overview"]

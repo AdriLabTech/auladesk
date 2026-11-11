@@ -4,12 +4,16 @@ use sqlx::SqlitePool;
 use std::path::Path;
 
 /// Abre una BD SQLite SIN cifrar (tests y copias). La aplicación usa `open_app`.
-pub async fn open(db_path: &Path) -> AppResult<SqlitePool> { open_with(db_path, None).await }
+pub async fn open(db_path: &Path) -> AppResult<SqlitePool> { open_with(db_path, None, None).await }
 
 /// Abre una BD cifrada con SQLCipher. `key_hex` son 64 hex (256 bits). Con clave incorrecta falla (no abre una BD vacía).
-pub async fn open_encrypted(db_path: &Path, key_hex: &str) -> AppResult<SqlitePool> { open_with(db_path, Some(key_hex)).await }
+pub async fn open_encrypted(db_path: &Path, key_hex: &str) -> AppResult<SqlitePool> { open_with(db_path, Some(key_hex), None).await }
 
-async fn open_with(db_path: &Path, key_hex: Option<&str>) -> AppResult<SqlitePool> {
+/// Como `open_encrypted`, pero si la BD ya existía y hay migraciones pendientes guarda antes una copia consistente en `backup_dir`.
+pub async fn open_encrypted_with_backup(db_path: &Path, key_hex: &str, backup_dir: &Path) -> AppResult<SqlitePool> { open_with(db_path, Some(key_hex), Some(backup_dir)).await }
+
+async fn open_with(db_path: &Path, key_hex: Option<&str>, backup_dir: Option<&Path>) -> AppResult<SqlitePool> {
+    let existed = db_path.exists();
     let mut opts = SqliteConnectOptions::new()
         .filename(db_path)
         .create_if_missing(true)
@@ -17,7 +21,18 @@ async fn open_with(db_path: &Path, key_hex: Option<&str>) -> AppResult<SqlitePoo
         .journal_mode(SqliteJournalMode::Wal);
     if let Some(k) = key_hex { opts = opts.pragma("key", key_pragma(k)); } // sqlx aplica `key` antes que el resto de pragmas
     let pool = SqlitePoolOptions::new().max_connections(4).connect_with(opts).await?;
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    let migrator = sqlx::migrate!("./migrations");
+    if let (true, Some(dir)) = (existed, backup_dir) {
+        let latest = migrator.migrations.iter().map(|m| m.version).max().unwrap_or(0);
+        let applied: Option<i64> = sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations").fetch_one(&pool).await.ok().flatten();
+        if let Some(applied) = applied.filter(|a| *a < latest) {
+            std::fs::create_dir_all(dir)?;
+            let dest = dir.join(format!("pre-migracion-{}-a-{}-{}.db", applied, latest, chrono::Local::now().format("%Y%m%d-%H%M%S")));
+            backup(&pool, &dest).await?;   // si la copia falla, NO se migra
+            tracing::info!("copia previa a la migración {applied}→{latest} guardada en exports/");
+        }
+    }
+    migrator.run(&pool).await?;
     Ok(pool)
 }
 
@@ -100,7 +115,7 @@ pub async fn open_app(db_path: &Path) -> AppResult<SqlitePool> {
     if exists && !plain {
         let key = load_or_create_key(false).map_err(AppError::Other)?
             .ok_or_else(|| AppError::Other("la base de datos está cifrada y no hay clave en el llavero del sistema".into()))?;
-        return open_encrypted(db_path, &key).await;
+        return open_encrypted_with_backup(db_path, &key, &backup_dir(db_path)).await;
     }
     match load_or_create_key(true) {
         Ok(Some(key)) => {
@@ -108,7 +123,7 @@ pub async fn open_app(db_path: &Path) -> AppResult<SqlitePool> {
                 let keep = encrypt_in_place(db_path, &key).await?;
                 tracing::warn!("BD cifrada con SQLCipher. La copia sin cifrar sigue en {}: bórrala cuando compruebes que todo funciona", keep.display());
             }
-            open_encrypted(db_path, &key).await
+            open_encrypted_with_backup(db_path, &key, &backup_dir(db_path)).await
         }
         Ok(None) => unreachable!(),
         Err(e) => {
@@ -117,6 +132,9 @@ pub async fn open_app(db_path: &Path) -> AppResult<SqlitePool> {
         }
     }
 }
+
+/// `<datos>/database/x.db` → `<datos>/exports`.
+fn backup_dir(db_path: &Path) -> std::path::PathBuf { db_path.parent().and_then(|p| p.parent()).unwrap_or(Path::new(".")).join("exports") }
 
 /// Copia de seguridad consistente (VACUUM INTO falla si el destino existe: nunca sobrescribe).
 pub async fn backup(pool: &SqlitePool, dest: &Path) -> AppResult<()> {
@@ -147,6 +165,10 @@ mod tests {
         let frozen = [
             ("0001_init.sql", "8934ABD67C02B318"), ("0002_library.sql", "B7EF539029C6E19A"),
             ("0003_assignments.sql", "61B0907B47F97D9C"), ("0004_calendar_notifications.sql", "0963BEC458883B6E"),
+            ("0005_task_detail.sql", "37209B1AD27D0575"), ("0006_schedule_drive.sql", "448C127D02A5B951"),
+            // 0007–0011 (Familias): congeladas al publicar la 0.3.0.
+            ("0007_accounts.sql", "B778BA3903D91A87"), ("0008_calendar_sources.sql", "A56848DC1DD9F41D"), ("0009_notifications_source.sql", "DB6B2069C0899FF4"),
+            ("0010_familias.sql", "134F85ABEBCD2BE7"), ("0011_family_actions.sql", "D501997890C0F968"),
         ];
         for (name, prefix) in frozen {
             let bytes = std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations").join(name)).unwrap();
@@ -167,6 +189,94 @@ mod tests {
     }
 
     use super::*;
+
+    /// Aplica solo las migraciones hasta `max_version` (simula una BD de una versión anterior de AulaDesk).
+    async fn migrate_up_to(pool: &SqlitePool, max_version: i64) {
+        let mut m = sqlx::migrate!("./migrations");
+        m.migrations = std::borrow::Cow::Owned(m.migrations.iter().filter(|x| x.version <= max_version).cloned().collect());
+        m.run(pool).await.unwrap();
+    }
+
+    async fn count(pool: &SqlitePool, table: &str) -> i64 { sqlx::query_scalar(&format!("SELECT count(*) FROM {table}")).fetch_one(pool).await.unwrap() }
+
+    /// CARACTERIZACIÓN: una BD real de la v0.2.1 (esquema 0006) con datos de Moodle debe actualizarse sin perder ni una fila,
+    /// conservar los id de eventos y que los avisos (reminder) sigan enlazados a ellos (DROP TABLE no debe borrarlos en cascada).
+    /// DATOS SINTÉTICOS.
+    #[tokio::test]
+    async fn upgrade_from_0006_keeps_moodle_data_and_links() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.db");
+        let pool = open_with_max(&path, 6).await;
+        sqlx::query("INSERT INTO user_profile(id,moodle_user_id,full_name,updated_at) VALUES(1,4242,'Ana',0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO course(id,moodle_id,fullname,folder_name) VALUES(1,10,'Interfaces','Interfaces')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO activity(id,course_id,moodle_cmid,modname,name,due_at) VALUES(1,1,5,'assign','Tarea',5000000)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO calendar_event(id,source,moodle_event_id,activity_id,kind,title,starts_at,remind_min) VALUES(-10,'moodle',-10,1,'due','Entrega: Tarea',5000000,NULL),(77,'personal',NULL,NULL,'study','Repasar',6000000,30)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO reminder(event_id,fire_at,rule) VALUES(-10,1,'due-1d'),(77,2,'evt-min')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO notification(category,title,created_at) VALUES('deadline','Entrega mañana',1)").execute(&pool).await.unwrap();
+        pool.close().await;
+
+        let pool = open(&path).await.unwrap();   // aplica 0007 en adelante
+        assert_eq!(count(&pool, "calendar_event").await, 2);
+        assert_eq!(count(&pool, "reminder").await, 2, "los avisos no se borran con la reconstrucción de calendar_event");
+        assert_eq!(count(&pool, "notification").await, 1);
+        let ev: (String, Option<i64>, Option<i64>, i64, Option<i64>) = sqlx::query_as("SELECT source, moodle_event_id, account_id, starts_at, remind_min FROM calendar_event WHERE id=-10").fetch_one(&pool).await.unwrap();
+        assert_eq!(ev, ("moodle".into(), Some(-10), Some(1), 5_000_000, None));
+        let personal: (Option<i64>, Option<i64>) = sqlx::query_as("SELECT account_id, remind_min FROM calendar_event WHERE id=77").fetch_one(&pool).await.unwrap();
+        assert_eq!(personal, (None, Some(30)));
+        let linked: i64 = sqlx::query_scalar("SELECT count(*) FROM reminder r JOIN calendar_event e ON e.id=r.event_id").fetch_one(&pool).await.unwrap();
+        assert_eq!(linked, 2);
+        let fk: Vec<(String,)> = sqlx::query_as("SELECT \"table\" FROM pragma_foreign_key_check").fetch_all(&pool).await.unwrap();
+        assert!(fk.is_empty(), "sin violaciones de claves foráneas: {fk:?}");
+        // cuenta Moodle creada y enlazada al usuario existente
+        let acc: (i64, String, Option<String>) = sqlx::query_as("SELECT id, platform, external_user FROM linked_account").fetch_one(&pool).await.unwrap();
+        assert_eq!(acc, (1, "moodle".into(), Some("4242".into())));
+        // las claves foráneas siguen activas y el borrado en cascada de reminder sigue funcionando
+        sqlx::query("DELETE FROM calendar_event WHERE id=77").execute(&pool).await.unwrap();
+        assert_eq!(count(&pool, "reminder").await, 1);
+        // el CHECK antiguo ya no impide nuevas fuentes; el id externo es único por origen/cuenta/alumno
+        sqlx::query("INSERT INTO linked_account(id,platform,label,external_user,created_at) VALUES(2,'familias','Familias','x',0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO student(id,account_id,external_ref,display_name,first_seen_at) VALUES(1,2,'a','A',0),(2,2,'b','B',0)").execute(&pool).await.unwrap();
+        let ins = |st: i64, ext: &'static str| { let p = pool.clone(); async move { sqlx::query("INSERT INTO calendar_event(source,account_id,student_id,external_id,kind,title,starts_at) VALUES('familias',2,?,?,'tutoring','t',1)").bind(st).bind(ext).execute(&p).await } };
+        ins(1, "e1").await.unwrap();
+        assert!(ins(1, "e1").await.is_err(), "mismo alumno + mismo id externo = duplicado");
+        ins(2, "e1").await.unwrap();   // otro alumno puede tener el mismo id externo: no se mezclan
+        assert!(sqlx::query("INSERT INTO calendar_event(source,kind,title,starts_at) VALUES('',  'x','t',1)").execute(&pool).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn backup_is_taken_before_pending_migrations_and_not_otherwise() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.db");
+        let out = dir.path().join("exports");
+        let pool = open_with_max(&path, 6).await;
+        sqlx::query("INSERT INTO application_settings(key,value,updated_at) VALUES('k','antes',0)").execute(&pool).await.unwrap();
+        pool.close().await;
+        let pool = open_encrypted_with_backup_plain_for_test(&path, &out).await;
+        pool.close().await;
+        let copies: Vec<_> = std::fs::read_dir(&out).unwrap().flatten().collect();
+        assert_eq!(copies.len(), 1, "una copia previa");
+        let name = copies[0].file_name().to_string_lossy().to_string();
+        assert!(name.starts_with("pre-migracion-6-a-"), "{name}");
+        let old = open_with_max(&copies[0].path(), 6).await;   // la copia es el esquema antiguo con sus datos
+        assert_eq!(get_setting(&old, "k").await.unwrap().as_deref(), Some("antes"));
+        assert!(sqlx::query_scalar::<_, i64>("SELECT count(*) FROM linked_account").fetch_one(&old).await.is_err(), "la copia es anterior a la migración");
+        old.close().await;
+        // ya migrada: no hay más copias
+        let pool = open_encrypted_with_backup_plain_for_test(&path, &out).await;
+        pool.close().await;
+        let dbs = std::fs::read_dir(&out).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().ends_with(".db")).count();
+        assert_eq!(dbs, 1);
+    }
+
+    /// Variante sin clave del camino con copia previa (los tests no usan el llavero).
+    async fn open_encrypted_with_backup_plain_for_test(path: &Path, out: &Path) -> SqlitePool { open_with(path, None, Some(out)).await.unwrap() }
+
+    async fn open_with_max(path: &Path, max: i64) -> SqlitePool {
+        let opts = SqliteConnectOptions::new().filename(path).create_if_missing(true).foreign_keys(true).journal_mode(SqliteJournalMode::Wal);
+        let pool = SqlitePoolOptions::new().max_connections(4).connect_with(opts).await.unwrap();
+        migrate_up_to(&pool, max).await;
+        pool
+    }
 
     #[tokio::test]
     async fn migrate_settings_and_backup() {

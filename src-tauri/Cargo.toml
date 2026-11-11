@@ -1,6 +1,6 @@
 [package]
 name = "auladesk"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "Cliente de escritorio para plataformas Moodle: tareas, entregas versionadas, archivos y avisos en local."
 license = "MIT"

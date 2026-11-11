@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tt } from '../lib/i18n.svelte';
   import { onMount } from 'svelte';
   import { open as pickFile } from '@tauri-apps/plugin-dialog';
   import { listFiles, listDuplicates, listCourses, listFolders, fileOpen, fileReveal, fileRename, fileMove, folderCreate, fileDelete, importFile, type FileRow, type CourseRow } from '../lib/api';
@@ -45,7 +46,7 @@
   const grouped = $derived.by(() => {
     const m = new Map<string, FileRow[]>();
     for (const f of files) {
-      const key = group === 'course' ? f.course_name ?? 'Sin asignatura' : group === 'kind' ? f.kind : group === 'month' ? cap(new Date(f.downloaded_at * 1000).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })) : 'Todos los archivos';
+      const key = group === 'course' ? f.course_name ?? tt('Sin asignatura') : group === 'kind' ? f.kind : group === 'month' ? cap(new Date(f.downloaded_at * 1000).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })) : tt('Todos los archivos');
       (m.get(key) ?? m.set(key, []).get(key)!).push(f);
     }
     return [...m.entries()];
@@ -54,20 +55,20 @@
   const total = $derived(files.reduce((a, f) => a + f.size_bytes, 0));
 </script>
 
-<h1>Biblioteca de archivos</h1>
-<p class="muted">{files.length} archivo(s) · {fmtSize(total)} · guardados en tu equipo, disponibles sin conexión.</p>
+<h1>{tt('Biblioteca de archivos')}</h1>
+<p class="muted">{files.length} {tt('archivo(s)')} · {fmtSize(total)} · {tt('guardados en tu equipo, disponibles sin conexión.')}</p>
 
 <div class="bar">
-  <input type="search" placeholder="Buscar por nombre, ruta o actividad…" bind:value={q} aria-label="Buscar archivos" />
-  <select bind:value={courseId} aria-label="Asignatura"><option value="">Todas las asignaturas</option>{#each courses as c}<option value={String(c.id)}>{c.fullname}</option>{/each}</select>
-  <select bind:value={kind} aria-label="Tipo"><option value="">Todos los tipos</option>{#each kinds as k}<option value={k}>{k}</option>{/each}</select>
-  <select bind:value={sort} aria-label="Orden"><option value="date">Más recientes</option><option value="name">Nombre</option><option value="size">Tamaño</option><option value="type">Tipo</option></select>
-  <select bind:value={group} aria-label="Agrupar"><option value="course">Agrupar: asignatura</option><option value="kind">Agrupar: tipo</option><option value="month">Agrupar: fecha de descarga</option><option value="flat">Sin agrupar</option></select>
+  <input type="search" placeholder={tt('Buscar por nombre, ruta o actividad…')} bind:value={q} aria-label={tt('Buscar archivos')} />
+  <select bind:value={courseId} aria-label="Asignatura"><option value="">{tt('Todas las asignaturas')}</option>{#each courses as c}<option value={String(c.id)}>{c.fullname}</option>{/each}</select>
+  <select bind:value={kind} aria-label={tt('Tipo')}><option value="">{tt('Todos los tipos')}</option>{#each kinds as k}<option value={k}>{k}</option>{/each}</select>
+  <select bind:value={sort} aria-label={tt('Orden')}><option value="date">{tt('Más recientes')}</option><option value="name">{tt('Nombre')}</option><option value="size">{tt('Tamaño')}</option><option value="type">{tt('Tipo')}</option></select>
+  <select bind:value={group} aria-label={tt('Agrupar')}><option value="course">{tt('Agrupar: asignatura')}</option><option value="kind">{tt('Agrupar: tipo')}</option><option value="month">{tt('Agrupar: fecha de descarga')}</option><option value="flat">{tt('Sin agrupar')}</option></select>
 </div>
 <div class="bar2">
-  <button class="btn" onclick={doImport}><Icon name="plus" size={15} /> Importar archivo propio…</button>
+  <button class="btn" onclick={doImport}><Icon name="plus" size={15} /> {tt('Importar archivo propio…')}</button>
   <form onsubmit={(e) => { e.preventDefault(); if (newFolder.trim()) act(() => folderCreate(newFolder), `Carpeta «${newFolder}» creada`).then(() => (newFolder = '')); }}>
-    <input placeholder="Nueva carpeta (p. ej. Personal/Apuntes)" bind:value={newFolder} aria-label="Nombre de carpeta" /><button class="btn">Crear</button>
+    <input placeholder={tt('Nueva carpeta (p. ej. Personal/Apuntes)')} bind:value={newFolder} aria-label={tt('Nombre de carpeta')} /><button class="btn">{tt('Crear')}</button>
   </form>
   {#if dupGroups.length}<button class="btn warn" onclick={() => (showDups = !showDups)}>{dupGroups.length} grupo(s) duplicado(s)</button>{/if}
 </div>
@@ -76,14 +77,14 @@
 {#if notice}<p class="msg ok" role="status">{notice}</p>{/if}
 
 {#if showDups}
-  <section class="card dups"><h2>Archivos con el mismo contenido (SHA-256)</h2>
+  <section class="card dups"><h2>{tt('Archivos con el mismo contenido (SHA-256)')}</h2>
     {#each dupGroups as g}<div class="dg">{#each g as f}<div><code>{f.rel_path}</code> <span class="muted">{fmtSize(f.size_bytes)}</span></div>{/each}</div>{/each}
-    <p class="muted">Elimina los que sobren desde la lista; el contenido sigue en el que conserves.</p>
+    <p class="muted">{tt('Elimina los que sobren desde la lista; el contenido sigue en el que conserves.')}</p>
   </section>
 {/if}
 
 {#if files.length === 0}
-  <div class="card empty"><span class="ico tone-blue"><Icon name="library" size={24} /></span><h2>No hay archivos {q || courseId || kind ? 'con estos filtros' : 'todavía'}</h2>{#if !q && !courseId && !kind}<p class="muted">Descárgalos desde «Mis asignaturas» (botón Descargar en cada recurso) o importa uno propio.</p>{/if}</div>
+  <div class="card empty"><span class="ico tone-blue"><Icon name="library" size={24} /></span><h2>{tt(q || courseId || kind ? 'No hay archivos con estos filtros' : 'No hay archivos todavía')}</h2>{#if !q && !courseId && !kind}<p class="muted">{tt('Descárgalos desde «Mis asignaturas» (botón Descargar en cada recurso) o importa uno propio.')}</p>{/if}</div>
 {/if}
 
 {#each grouped as [title, rows] (title)}
@@ -94,27 +95,27 @@
           <span class="kbadge k-{f.kind}">{kindGlyph[f.kind]}</span>
           <div class="meta">
             <b>{f.original_name}</b>
-            <small class="muted">{f.course_name ?? 'Sin asignatura'}{f.section_position !== null ? ` · ${f.section_position === 0 ? 'General' : 'Tema ' + f.section_position}` : ''}{f.activity_name ? ` · ${f.activity_name}` : ''}</small>
+            <small class="muted">{f.course_name ?? 'Sin asignatura'}{f.section_position !== null ? ` · ${f.section_position === 0 ? tt('General') : tt('Tema {n}', { n: f.section_position })}` : ''}{f.activity_name ? ` · ${f.activity_name}` : ''}</small>
             <small class="muted path">{f.rel_path}{f.sync_state === 'outdated' ? ' · versión anterior' : ''}{!f.exists ? ' · NO ESTÁ EN DISCO' : ''}</small>
           </div>
           <span class="muted nowrap">{fmtSize(f.size_bytes)}<br />{fmtDate(f.downloaded_at)}</span>
           <div class="acts">
-            <button class="btn sm primary" disabled={!f.exists} onclick={() => openViewer({ id: f.id, name: f.original_name })}>Ver</button>
-            <button class="btn sm" disabled={!f.exists} onclick={() => act(() => fileOpen(f.id))}>Abrir</button>
-            <button class="btn sm" disabled={!f.exists} onclick={() => act(() => fileReveal(f.id))}>Carpeta</button>
-            <button class="btn sm" onclick={() => (editing = { id: f.id, mode: 'rename', value: f.local_name })}>Renombrar</button>
-            <button class="btn sm" onclick={() => (editing = { id: f.id, mode: 'move', value: f.rel_path.split('/').slice(0, -1).join('/') })}>Mover</button>
+            <button class="btn sm primary" disabled={!f.exists} onclick={() => openViewer({ id: f.id, name: f.original_name })}>{tt('Ver')}</button>
+            <button class="btn sm" disabled={!f.exists} onclick={() => act(() => fileOpen(f.id))}>{tt('Abrir')}</button>
+            <button class="btn sm" disabled={!f.exists} onclick={() => act(() => fileReveal(f.id))}>{tt('Carpeta')}</button>
+            <button class="btn sm" onclick={() => (editing = { id: f.id, mode: 'rename', value: f.local_name })}>{tt('Renombrar')}</button>
+            <button class="btn sm" onclick={() => (editing = { id: f.id, mode: 'move', value: f.rel_path.split('/').slice(0, -1).join('/') })}>{tt('Mover')}</button>
             {#if confirmDel === f.id}
-              <button class="btn sm danger" onclick={() => act(() => fileDelete(f.id), 'Eliminado de tu equipo (Moodle no se toca)')}>Confirmar</button>
+              <button class="btn sm danger" onclick={() => act(() => fileDelete(f.id), 'Eliminado de tu equipo (Moodle no se toca)')}>{tt('Confirmar')}</button>
               <button class="btn sm" onclick={() => (confirmDel = null)}>No</button>
-            {:else}<button class="btn sm" onclick={() => (confirmDel = f.id)}>Eliminar</button>{/if}
+            {:else}<button class="btn sm" onclick={() => (confirmDel = f.id)}>{tt('Eliminar')}</button>{/if}
           </div>
           {#if editing?.id === f.id}
             <form class="edit" onsubmit={(e) => { e.preventDefault(); submitEdit(); }}>
               <label>{editing.mode === 'rename' ? 'Nuevo nombre' : 'Carpeta destino (dentro de la biblioteca)'}
                 <input bind:value={editing.value} list={editing.mode === 'move' ? 'folders' : undefined} />
               </label>
-              <button class="btn primary sm">Aceptar</button><button type="button" class="btn sm" onclick={() => (editing = null)}>Cancelar</button>
+              <button class="btn primary sm">{tt('Aceptar')}</button><button type="button" class="btn sm" onclick={() => (editing = null)}>{tt('Cancelar')}</button>
             </form>
           {/if}
         </li>
@@ -123,6 +124,7 @@
   </section>
 {/each}
 <datalist id="folders">{#each folders as d}<option value={d}></option>{/each}</datalist>
+
 
 <style>
   .bar, .bar2 { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; align-items: center; }

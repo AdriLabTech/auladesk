@@ -1,0 +1,15 @@
+{
+  "version": "f1",
+  "_nota": "Recetas escritas contra el DOM real del portal el 2026-11-11 (cuenta de alumno con un único perfil). El portal muestra solo el perfil activo, así que ninguna receta es por alumno: con varios alumnos en la cuenta habría que cambiar de perfil (SIN verificar). Los textos de menú son los literales del portal.",
+  "recipes": [
+    { "name": "alumno", "steps": [ { "click": "Ficha del alumno/a" }, { "wait_ms": 1500 }, { "extract": { "extractor": "students" } } ] },
+    { "name": "faltas", "steps": [ { "click": "Faltas de asistencia" }, { "wait_ms": 1500 }, { "extract": { "extractor": "attendance" } } ] },
+    { "name": "mensajes", "steps": [ { "click": "Mensajes de entrada" }, { "wait_ms": 2000 }, { "extract": { "extractor": "messages", "kind": "mensaje" } } ] },
+    { "name": "notas", "steps": [
+        { "click": "Notas del curso actual" }, { "wait_ms": 1500 },
+        { "select": { "id": "X_CONVCENTRO", "option": "Evaluación inicial" } }, { "extract": { "extractor": "grades" } },
+        { "select": { "id": "X_CONVCENTRO", "option": "1ª Evaluación" } }, { "extract": { "extractor": "grades" } },
+        { "select": { "id": "X_CONVCENTRO", "option": "2ª Evaluación" } }, { "extract": { "extractor": "grades" } }
+    ] }
+  ]
+}

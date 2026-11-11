@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-integration-sync"
+description = "Enables the integration_sync command without any pre-configured scope."
+commands.allow = ["integration_sync"]
+
+[[permission]]
+identifier = "deny-integration-sync"
+description = "Denies the integration_sync command without any pre-configured scope."
+commands.deny = ["integration_sync"]

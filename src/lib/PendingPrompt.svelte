@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t as tt } from './i18n.svelte';
+  import { trapFocus } from './a11y';
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { pendingPromptData, scheduleCancel, scheduleMarkSeen, submissionSubmit, type PendingPrompt, type PendingItem, type SessionState } from './api';
@@ -42,26 +44,26 @@
   async function deliver(it: PendingItem) {
     if (!agree) return;
     const v = it.version; confirm = null; agree = false; error = ''; result = null; running = { id: v.id, text: 'Empezando…' };
-    try { const r = await submissionSubmit(v.id, true, false); result = { id: v.id, ok: r.state === 'confirmed', text: r.state === 'confirmed' ? 'Entrega confirmada por Moodle.' : 'Enviada; Moodle aún no muestra un archivo idéntico (compruébalo en Entregas).' }; }
+    try { const r = await submissionSubmit(v.id, true, false); result = { id: v.id, ok: r.state === 'confirmed', text: r.state === 'confirmed' ? tt('Entrega confirmada por Moodle.') : tt('Enviada; Moodle aún no muestra un archivo idéntico (compruébalo en Entregas).') }; }
     catch (e) { result = { id: v.id, ok: false, text: String(e) }; }
     running = null; await refresh();
   }
   async function cancelSchedule(id: number) { error = ''; try { await scheduleCancel(id); await refresh(); } catch (e) { error = String(e); } }
-  const dueText = (t: number | null) => (t ? `plazo ${fmtDate(t)}` : 'sin fecha límite');
-  const stateText: Record<string, string> = { done: 'Entregada', failed: 'No se pudo entregar', missed: 'Plazo perdido' };
+  const dueText = (t: number | null) => (t ? `${tt('plazo')} ${fmtDate(t)}` : tt('sin fecha límite'));
+  const stateText: Record<string, string> = $derived({ done: tt('Entregada'), failed: tt('No se pudo entregar'), missed: tt('Plazo perdido') });
 </script>
 
 {#if open && data}
-  <div class="overlay" role="dialog" aria-modal="true" aria-label="Entregas preparadas">
+  <div class="overlay" role="dialog" use:trapFocus aria-modal="true" aria-label={tt('Entregas preparadas')}>
     <div class="modal card">
       <header><span class="ico"><Icon name="submissions" size={20} /></span>
-        <div><h2>{data.items.length ? `Tienes ${data.items.length} entrega${data.items.length === 1 ? '' : 's'} preparada${data.items.length === 1 ? '' : 's'}` : 'Resultado de entregas programadas'}</h2>
-          <p class="muted small">Nada se envía a Moodle sin que lo confirmes aquí o lo hayas programado antes.</p></div></header>
+        <div><h2>{data.items.length ? tt(data.items.length === 1 ? 'Tienes {n} entrega preparada' : 'Tienes {n} entregas preparadas', { n: data.items.length }) : tt('Resultado de entregas programadas')}</h2>
+          <p class="muted small">{tt('Nada se envía a Moodle sin que lo confirmes aquí o lo hayas programado antes.')}</p></div></header>
 
-      {#if session !== 'active' && session !== 'unknown' && data.items.length}<p class="msg err" role="alert">No hay sesión de Moodle activa. Inicia sesión en «Moodle / Conexión» para poder entregar; una entrega programada también la necesita.</p>{/if}
+      {#if session !== 'active' && session !== 'unknown' && data.items.length}<p class="msg err" role="alert">{tt('No hay sesión de Moodle activa. Inicia sesión en «Moodle / Conexión» para poder entregar; una entrega programada también la necesita.')}</p>{/if}
 
       {#if data.results.length}
-        <section><h3>Entregas programadas</h3>
+        <section><h3>{tt('Entregas programadas')}</h3>
           {#each data.results as r (r.id)}
             <div class="res {r.state}"><b>{stateText[r.state] ?? r.state}</b> · {r.activity_name} <span class="muted">({r.course_name})</span>{#if r.last_error}<br /><small class="muted">{r.last_error}</small>{/if}</div>
           {/each}
@@ -75,21 +77,21 @@
             <li>
               <div class="head"><b>{v.activity_name}</b><span class="muted">{v.course_name} · {dueText(v.deadline_at)}</span></div>
               <p class="file">{v.file_name} <span class="muted">· {fmtSize(v.size_bytes)} · v{v.version} · <code title={v.sha256}>{v.sha256.slice(0, 12)}…</code></span></p>
-              {#if it.can_submit === 0}<p class="msg err small">Moodle indica que ya no se puede entregar (plazo cerrado o sin permiso). Sincroniza para actualizar.</p>{/if}
+              {#if it.can_submit === 0}<p class="msg err small">{tt('Moodle indica que ya no se puede entregar (plazo cerrado o sin permiso). Sincroniza para actualizar.')}</p>{/if}
               {#if it.schedule}
-                <p class="sched"><Icon name="calendar" size={14} /> Programada para <b>{fmtDate(it.schedule.run_at)}</b>{it.schedule.last_error ? ` · ${it.schedule.last_error}` : ''}
-                  {#if it.schedule.state === 'scheduled'}<button class="btn sm" onclick={() => cancelSchedule(it.schedule!.id)}>Cancelar programación</button>{/if}</p>
+                <p class="sched"><Icon name="calendar" size={14} /> {tt('Programada para')} <b>{fmtDate(it.schedule.run_at)}</b>{it.schedule.last_error ? ` · ${it.schedule.last_error}` : ''}
+                  {#if it.schedule.state === 'scheduled'}<button class="btn sm" onclick={() => cancelSchedule(it.schedule!.id)}>{tt('Cancelar programación')}</button>{/if}</p>
               {/if}
               {#if running?.id === v.id}<p class="muted small" role="status"><i class="spin"></i> {running.text}</p>
               {:else if result?.id === v.id}<p class="msg {result.ok ? 'ok' : 'err'}" role="status">{result.text}</p>
               {:else if confirm === v.id}
-                <label class="agree"><input type="checkbox" bind:checked={agree} /> Entiendo que esto <b>envía «{v.file_name}» a Moodle ahora</b> y lo verá el profesorado.</label>
-                <div class="acts"><button class="btn primary sm" disabled={!agree || session !== 'active'} onclick={() => deliver(it)}>Confirmar y entregar ahora</button><button class="btn sm" onclick={() => { confirm = null; agree = false; }}>Atrás</button></div>
+                <label class="agree"><input type="checkbox" bind:checked={agree} /> {tt('Entiendo que esto')} <b>{tt('envía «{f}» a Moodle ahora', { f: v.file_name })}</b> {tt('y lo verá el profesorado.')}</label>
+                <div class="acts"><button class="btn primary sm" disabled={!agree || session !== 'active'} onclick={() => deliver(it)}>{tt('Confirmar y entregar ahora')}</button><button class="btn sm" onclick={() => { confirm = null; agree = false; }}>{tt('Atrás')}</button></div>
               {:else}
                 <div class="acts">
-                  <button class="btn primary sm" disabled={running !== null || it.can_submit === 0} onclick={() => { confirm = v.id; agree = false; }}>Entregar ahora…</button>
-                  {#if !it.schedule}<button class="btn sm" disabled={running !== null || it.can_submit === 0} onclick={() => (scheduling = it)}>Programar…</button>{/if}
-                  <button class="btn sm" onclick={() => { close(); go('submissions'); }}>Ver en Entregas</button>
+                  <button class="btn primary sm" disabled={running !== null || it.can_submit === 0} onclick={() => { confirm = v.id; agree = false; }}>{tt('Entregar ahora…')}</button>
+                  {#if !it.schedule}<button class="btn sm" disabled={running !== null || it.can_submit === 0} onclick={() => (scheduling = it)}>{tt('Programar…')}</button>{/if}
+                  <button class="btn sm" onclick={() => { close(); go('submissions'); }}>{tt('Ver en Entregas')}</button>
                 </div>
               {/if}
             </li>
@@ -102,6 +104,7 @@
   </div>
 {/if}
 {#if scheduling}<ScheduleForm version={scheduling.version} onCancel={() => (scheduling = null)} onDone={() => { scheduling = null; refresh(); }} />{/if}
+
 
 <style>
   .overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; z-index: 80; padding: 20px; animation: fade .2s backwards; }

@@ -4,13 +4,15 @@
   const VERSION = 'v1';
   window.__mdBridge = VERSION;
 
-  const send = (kind, payload) => {
+  const rawSend = (kind, payload, url) => {
     const inv = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke;
     if (!inv) return Promise.resolve();
-    return inv('ingest_page', { kind, url: location.href, payload }).catch((e) => {
+    return inv('ingest_page', { kind, url: url || location.href, payload }).catch((e) => {
       try { document.title = '[mdbridge error-' + kind + ': ' + String(e).slice(0, 300) + '] ' + document.title; } catch (_) {}
     });
   };
+  const send = (kind, payload) => rawSend(kind, payload, location.href);
+  const LIVE = () => ({ doc: document, loc: location, wait: waitFor });
   const cfg = () => (window.M && window.M.cfg) || null;
   const text = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
   const idFromUrl = (u, re) => { const m = re.exec(u || ''); return m ? Number(m[1]) : null; };
@@ -96,12 +98,14 @@
   }
 
   // --- Contenido de un curso (/course/view.php?id=N, formato temas/semanas) ---
-  async function contents() {
-    if (!location.pathname.endsWith('/course/view.php')) return fail('course_contents', 'no estoy en course/view.php');
-    const courseId = idFromUrl(location.search, /[?&]id=(\d+)/);
-    const first = await waitFor(() => document.querySelector('li.course-section[data-number]'));
+  async function contents(ctx) {
+    const { doc, loc, wait } = ctx || LIVE();
+    const send = (k, p) => rawSend(k, p, loc.href);
+    if (!loc.pathname.endsWith('/course/view.php')) return fail('course_contents', 'no estoy en course/view.php');
+    const courseId = idFromUrl(loc.search, /[?&]id=(\d+)/);
+    const first = await wait(() => doc.querySelector('li.course-section[data-number]'));
     if (!first) return fail('course_contents', 'estructura: sin li.course-section (formato de curso no soportado)');
-    const sections = [...document.querySelectorAll('li.course-section[data-number]')].map((s) => ({
+    const sections = [...doc.querySelectorAll('li.course-section[data-number]')].map((s) => ({
       moodle_id: Number(s.dataset.id) || null,
       position: Number(s.dataset.number),
       name: s.dataset.sectionname || text(s.querySelector('.sectionname')) || 'Sin nombre',
@@ -124,19 +128,21 @@
   }
 
   // --- Página de una tarea (/mod/assign/view.php?id=N) ---
-  async function assignment() {
-    if (!location.pathname.endsWith('/mod/assign/view.php')) return fail('assignment', 'no estoy en mod/assign/view.php');
-    const cmid = idFromUrl(location.search, /[?&]id=(\d+)/);
-    await waitFor(() => document.querySelector('#region-main'));
-    const title = document.title;
-    const table = document.querySelector('.submissionstatustable');
-    const err = document.querySelector('.errorbox, .alert-danger, [data-region="error"]');
+  async function assignment(ctx) {
+    const { doc, loc, wait } = ctx || LIVE();
+    const send = (k, p) => rawSend(k, p, loc.href);
+    if (!loc.pathname.endsWith('/mod/assign/view.php')) return fail('assignment', 'no estoy en mod/assign/view.php');
+    const cmid = idFromUrl(loc.search, /[?&]id=(\d+)/);
+    await wait(() => doc.querySelector('#region-main'));
+    const title = doc.title;
+    const table = doc.querySelector('.submissionstatustable');
+    const err = doc.querySelector('.errorbox, .alert-danger, [data-region="error"]');
     if (/^error/i.test(title) || (err && !table)) return send('assignment', { selector_version: VERSION, cmid, page_title: title, error: text(err) || title });
     const rowsOf = (root) => [...(root ? root.querySelectorAll('table tr') : [])].map((tr) => {
       const th = tr.querySelector('th'), td = tr.querySelector('td');
       return th && td ? { label: text(th), value: text(td) } : null;
     }).filter(Boolean);
-    const datesEl = document.querySelector('[data-region="activity-dates"]');
+    const datesEl = doc.querySelector('[data-region="activity-dates"]');
     let dates = datesEl ? [...datesEl.querySelectorAll(':scope > div')].map(text).filter(Boolean) : [];
     if (datesEl && dates.length <= 1) dates = text(datesEl).split(/(?=(?:Apertura|Cierre|Fecha de entrega|Abierto|Vencimiento):)/).map((x) => x.trim()).filter(Boolean);
     const files = [...(table || document).querySelectorAll('.fileuploadsubmission a[href*="/pluginfile.php/"]')].map((a) => {
@@ -144,9 +150,9 @@
       const t = box && box.nextElementSibling && box.nextElementSibling.classList.contains('fileuploadsubmissiontime') ? text(box.nextElementSibling) : null;
       return { name: text(a), url: a.href.split('#')[0], time_text: t };
     });
-    const btns = [...document.querySelectorAll('#region-main .btn, #region-main button, #region-main a.btn')].map(text);
+    const btns = [...doc.querySelectorAll('#region-main .btn, #region-main button, #region-main a.btn')].map(text);
     // Descripción de la tarea como TEXTO plano (listas con viñetas, saltos de línea) + sus enlaces. Nunca se envía HTML.
-    const introEl = document.querySelector('#intro') || document.querySelector('.activity-description');
+    const introEl = doc.querySelector('#intro') || doc.querySelector('.activity-description');
     const BLOCK = new Set(['P', 'DIV', 'UL', 'OL', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TABLE', 'TR', 'PRE', 'BLOCKQUOTE', 'SECTION', 'ARTICLE']);
     const toText = (root) => {
       const out = [];
@@ -166,35 +172,39 @@
     };
     const intro_text = introEl ? toText(introEl).slice(0, 20000) : null;
     const seenUrl = new Set();
-    const intro_links = [...new Set([...(introEl ? introEl.querySelectorAll('a[href]') : []), ...document.querySelectorAll('.introattachments a[href]')])]
+    const intro_links = [...new Set([...(introEl ? introEl.querySelectorAll('a[href]') : []), ...doc.querySelectorAll('.introattachments a[href]')])]
       .map((a) => ({ name: text(a) || a.href, url: a.href.split('#')[0], file: /\/pluginfile\.php\//.test(a.href) }))
       .filter((l) => /^https:/.test(l.url) && !seenUrl.has(l.url) && seenUrl.add(l.url)).slice(0, 60);
     return send('assignment', {
       intro_text, intro_links,
       selector_version: VERSION, cmid, page_title: title, dates,
-      status_rows: rowsOf(table), grade_rows: rowsOf(document.querySelector('.feedback .feedbacktable')),
+      status_rows: rowsOf(table), grade_rows: rowsOf(doc.querySelector('.feedback .feedbacktable')),
       files, can_add: btns.some((b) => /agregar entrega/i.test(b)), can_edit: btns.some((b) => /editar entrega/i.test(b)),
     });
   }
 
   // --- Fechas de una actividad que no es tarea (cuestionarios…) ---
-  async function activityDates() {
-    const m = /\/mod\/([a-z]+)\/view\.php$/.exec(location.pathname);
+  async function activityDates(ctx) {
+    const { doc, loc, wait } = ctx || LIVE();
+    const send = (k, p) => rawSend(k, p, loc.href);
+    const m = /\/mod\/([a-z]+)\/view\.php$/.exec(loc.pathname);
     if (!m) return fail('activity_dates', 'no estoy en una página mod/*/view.php');
-    const cmid = idFromUrl(location.search, /[?&]id=(\d+)/);
-    await waitFor(() => document.querySelector('#region-main'));
-    if (/^error/i.test(document.title)) return send('activity_dates', { selector_version: VERSION, cmid, modname: m[1], error: document.title });
-    const el = document.querySelector('[data-region="activity-dates"]');
+    const cmid = idFromUrl(loc.search, /[?&]id=(\d+)/);
+    await wait(() => doc.querySelector('#region-main'));
+    if (/^error/i.test(doc.title)) return send('activity_dates', { selector_version: VERSION, cmid, modname: m[1], error: doc.title });
+    const el = doc.querySelector('[data-region="activity-dates"]');
     let dates = el ? [...el.querySelectorAll(':scope > div')].map(text).filter(Boolean) : [];
     if (el && dates.length <= 1) dates = text(el).split(/(?=(?:Apertura|Cierre|Abrió|Cerró|Se abrirá|Se cerrará|Abierto|Cerrado|Fecha de entrega|Vencimiento):)/).map((x) => x.trim()).filter(Boolean);
     return send('activity_dates', { selector_version: VERSION, cmid, modname: m[1], dates });
   }
 
   // --- Calendario de Moodle: vista «Próximos eventos» ---
-  async function calendarUpcoming() {
-    if (!location.pathname.endsWith('/calendar/view.php')) return fail('calendar', 'no estoy en calendar/view.php');
-    await waitFor(() => document.querySelector('.eventlist, [data-region="calendar"], #region-main'));
-    const events = [...document.querySelectorAll('.eventlist [data-event-id]')].map((e) => {
+  async function calendarUpcoming(ctx) {
+    const { doc, loc, wait } = ctx || LIVE();
+    const send = (k, p) => rawSend(k, p, loc.href);
+    if (!loc.pathname.endsWith('/calendar/view.php')) return fail('calendar', 'no estoy en calendar/view.php');
+    await wait(() => doc.querySelector('.eventlist, [data-region="calendar"], #region-main'));
+    const events = [...doc.querySelectorAll('.eventlist [data-event-id]')].map((e) => {
       const date = e.querySelector('[data-timestamp]');
       const a = e.querySelector('a[href*="/mod/"]');
       return { id: Number(e.dataset.eventId), title: e.dataset.eventTitle || text(e.querySelector('.name')), component: e.dataset.eventComponent || '',
@@ -314,6 +324,23 @@
     }
     return bad('etapa desconocida');
   }
+
+
+  // --- Modo sin renderizar: pide solo el HTML (mismo origen, con la sesión del navegador) y extrae del documento analizado. ---
+  const EXTRACT = { contents, assignment, activity_dates: activityDates, calendar: calendarUpcoming };
+  async function fetchRun(kind, url) {
+    const ex = EXTRACT[kind];
+    if (!ex) return fail(kind, 'sin modo fetch para ' + kind);
+    let r;
+    try { r = await fetch(url, { credentials: 'same-origin', redirect: 'follow' }); } catch (e) { return fail(kind, 'fetch: ' + String(e).slice(0, 200)); }
+    if (!r.ok) return fail(kind, 'fetch: HTTP ' + r.status);
+    const final = new URL(r.url);
+    if (/\/login\//.test(final.pathname)) return fail(kind, 'fetch: la sesión no es válida (redirigido a login)');
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    const base = doc.createElement('base'); base.href = r.url; doc.head.prepend(base); // los enlaces relativos se resuelven contra la página pedida
+    return ex({ doc, loc: final, wait: async (p) => p() });
+  }
+  window.__mdFetch = (kind, url) => { try { return fetchRun(kind, url); } catch (e) { return fail(kind, String(e)); } };
 
   window.__mdRun = (kind) => {
     try {

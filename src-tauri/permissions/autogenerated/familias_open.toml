@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-open"
+description = "Enables the familias_open command without any pre-configured scope."
+commands.allow = ["familias_open"]
+
+[[permission]]
+identifier = "deny-familias-open"
+description = "Denies the familias_open command without any pre-configured scope."
+commands.deny = ["familias_open"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-attendance"
+description = "Enables the familias_attendance command without any pre-configured scope."
+commands.allow = ["familias_attendance"]
+
+[[permission]]
+identifier = "deny-familias-attendance"
+description = "Denies the familias_attendance command without any pre-configured scope."
+commands.deny = ["familias_attendance"]

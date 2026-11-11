@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-audio-viz-start"
+description = "Enables the audio_viz_start command without any pre-configured scope."
+commands.allow = ["audio_viz_start"]
+
+[[permission]]
+identifier = "deny-audio-viz-start"
+description = "Denies the audio_viz_start command without any pre-configured scope."
+commands.deny = ["audio_viz_start"]

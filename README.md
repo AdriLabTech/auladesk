@@ -19,7 +19,9 @@ Cliente de escritorio, **personal y de solo lectura**, para plataformas [Moodle]
 - **Sincronización automática** cada 10 min–12 h con avisos de tareas nuevas, cambios de fecha y notas; con bandeja del sistema para seguir en segundo plano.
 - **Cartel de bienvenida** del Dashboard totalmente personalizable y animación de bienvenida al iniciar sesión.
 - **Calendario y avisos**: eventos derivados de las fechas reales, recordatorios configurables (también con la app cerrada mediante un servicio de usuario opcional).
-- **Apariencia**: 8 temas predefinidos, acento propio, esquinas y modo tranquilo; paleta de comandos `Ctrl+K`.
+- **Familias (PASEN/iPasen)**: alumnado, calificaciones, faltas y comunicaciones del portal, de solo lectura y con tu propia sesión (sin guardar contraseña); la sesión se conserva y se mantiene viva mientras la app está abierta.
+- **Sincronización rápida y opcional al iniciar**: Moodle lee sin renderizar y solo relee lo que puede haber cambiado; Moodle y Familias se sincronizan a la vez.
+- **Apariencia y accesibilidad**: 18 temas (algunos animados), efectos con ecualizador real (Linux), pantallas de bienvenida, español/inglés, alto contraste, densidad y tamaño; paleta de comandos `Ctrl+K`.
 
 ### Tareas: lista o tablero, con todo el detalle
 ![Tablero](docs/img/tablero.png)
@@ -29,7 +31,7 @@ Cliente de escritorio, **personal y de solo lectura**, para plataformas [Moodle]
 ![Entrega](docs/img/entrega.png)
 ![Visor](docs/img/visor.png)
 
-### Ocho temas y personalización
+### Temas y personalización
 ![Temas](docs/img/temas.png)
 
 ## Principios de seguridad y privacidad

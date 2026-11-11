@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/remote-schema.json",
+  "identifier": "familias-remote-capability",
+  "description": "P\u00e1ginas del portal de Familias: un \u00fanico comando (ingest_familias), que valida todo en Rust.",
+  "windows": [
+    "familias"
+  ],
+  "remote": {
+    "urls": [
+      "https://seneca.juntadeandalucia.es/*"
+    ]
+  },
+  "permissions": [
+    "allow-ingest-familias"
+  ],
+  "webviews": [
+    "familias"
+  ]
+}

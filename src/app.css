@@ -2,7 +2,9 @@
    Un tema fija 6 colores (bg, panel, text, muted, accent, accent-fg) desde lib/theme.svelte.ts.
    Todo lo demás —bordes, capas, tintes, estados— se DERIVA aquí con color-mix, así cualquier acento propio sigue siendo coherente.
    Superficies planas, bordes finos, acento saturado: sin degradados ni cristal. */
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #ff6a13; }
 :root {
+  transition: --accent 2.2s linear; /* temas animados: el acento cambia suave; en el resto solo anima el cambio de tema */
   /* base del tema (valores por defecto = «Brasa»; JS los sobrescribe) */
   --bg: #121110; --panel-solid: #1b1a17; --text: #f4efe8; --muted: #a39b8f; --accent: #ff6a13; --accent-fg: #1a0a00;
   --font-display: 'Space Grotesk', 'Inter Variable', system-ui, sans-serif;
@@ -13,7 +15,7 @@
   --panel-3: color-mix(in srgb, var(--text) 9%, transparent);
   --line: color-mix(in srgb, var(--text) 11%, transparent);
   --line-strong: color-mix(in srgb, var(--text) 22%, transparent);
-  --faint: color-mix(in srgb, var(--muted) 62%, var(--bg));
+  --faint: var(--muted); /* antes más tenue, pero no llegaba a 4,5:1 (WCAG AA) en ningún tema */
   --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 55%, transparent);
   --ok: var(--c-green); --warn: var(--c-amber); --bad: var(--c-red);
@@ -66,7 +68,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Tarjetas: planas, borde fino; al pasar el puntero el borde toma el acento ── */
-.card, .glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow); }
+.card, .glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--pad, 18px); box-shadow: var(--shadow); }
 .glow { transition: border-color .18s, transform .22s var(--ease), box-shadow .22s; }
 .glow:hover { border-color: var(--accent-line); }
 
@@ -125,3 +127,17 @@ input[type='color'] { width: 44px; height: 34px; padding: 2px; border: 1px solid
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; } }
 :root[data-calm='1'] *, :root[data-calm='1'] *::before, :root[data-calm='1'] *::after { transition: none !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; }
 h1 + section, h1 + .card { margin-top: 18px; }
+
+/* Densidad: solo cambia respiración de tarjetas y contenido */
+:root[data-density='compact'] { --pad: 12px; --gutter-y: 18px; --gutter-x: 24px; }
+:root[data-density='roomy'] { --pad: 24px; --gutter-y: 38px; --gutter-x: 48px; }
+
+/* Alto contraste (ajuste o prefers-contrast): texto secundario casi pleno, bordes marcados, foco grueso */
+:root[data-contrast='high'] { --muted: color-mix(in srgb, var(--text) 86%, var(--bg)); --line: color-mix(in srgb, var(--text) 38%, transparent); --line-strong: color-mix(in srgb, var(--text) 62%, transparent); --accent-line: var(--accent); }
+:root[data-contrast='high'] :focus-visible { outline-width: 3px; outline-offset: 3px; }
+/* Enlace para saltar la navegación (solo visible con el teclado) y anuncios para lectores de pantalla */
+.skip { position: fixed; left: 12px; top: -60px; z-index: 2000; padding: 9px 14px; border-radius: var(--radius); background: var(--accent); color: var(--accent-fg); font-weight: 700; text-decoration: none; transition: top .15s; }
+.skip:focus { top: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+:root[data-calm='1'] { transition: none; }

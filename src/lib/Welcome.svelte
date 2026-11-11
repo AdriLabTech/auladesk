@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tt } from './i18n.svelte';
   import { onMount } from 'svelte';
   import { dashboardData } from './api';
   import { account, initials } from './account.svelte';
@@ -18,7 +19,7 @@
     dashboardData().then((d) => {
       const c = d.counts, s: typeof stats = [];
       if (d.total_tasks > 0) {
-        s.push({ label: `${c.todo} ${c.todo === 1 ? 'tarea por hacer' : 'tareas por hacer'}` });
+        s.push({ label: `${c.todo} ${tt(c.todo === 1 ? 'tarea por hacer' : 'tareas por hacer')}` });
         if (c.overdue_recent) s.push({ label: `${c.overdue_recent} ${c.overdue_recent === 1 ? 'vencida' : 'vencidas'}`, tone: 'bad' });
         if (c.exams_30d) s.push({ label: `${c.exams_30d} ${c.exams_30d === 1 ? 'examen' : 'exámenes'} en 30 días` });
       }
@@ -31,7 +32,7 @@
 
 <svelte:window onkeydown={key} />
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="veil" class:leaving onclick={leave} role="dialog" tabindex="-1" aria-modal="true" aria-label="Bienvenida">
+<div class="veil" class:leaving onclick={leave} role="dialog" tabindex="-1" aria-modal="true" aria-label={tt('Bienvenida')}>
   <i class="ring r1"></i><i class="ring r2"></i><i class="ring r3"></i>
   <div class="stage">
     <div class="badge-wrap">
@@ -39,18 +40,19 @@
       <div class="avatar">{account.name ? initials(account.name) : '✓'}</div>
       <svg class="tick" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" class="tick-bg" /><path d="M9 16.5l4.8 4.8L23 11.5" /></svg>
     </div>
-    <span class="eyebrow">Te damos la bienvenida</span>
+    <span class="eyebrow">{tt('Te damos la bienvenida')}</span>
     {#if words.length}
       <h1 class="name">{#each words as w, i}<span class="w"><span style="animation-delay: {1150 + i * 90}ms">{w}</span></span>{' '}{/each}</h1>
     {/if}
-    <p class="sub">Sesión iniciada en Moodle · <span class="mono">educacionadistancia.juntadeandalucia.es</span></p>
+    <p class="sub">{tt('Sesión iniciada en Moodle ·')} <span class="mono">{tt('educacionadistancia.juntadeandalucia.es')}</span></p>
     {#if stats.length}
       <div class="stats">{#each stats as s, i}<span class="pill" class:bad={s.tone === 'bad'} style="animation-delay: {1900 + i * 140}ms">{s.label}</span>{/each}</div>
     {/if}
   </div>
-  <span class="skip">Pulsa para continuar</span>
+  <span class="skip">{tt('Pulsa para continuar')}</span>
   <span class="bar"><i style="animation-duration: {HOLD}ms"></i></span>
 </div>
+
 
 <style>
   .veil { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; overflow: hidden; cursor: pointer;

@@ -30,7 +30,7 @@ pub async fn deliver(pool: &SqlitePool, sink: &dyn Sink, now: i64, s: &NotifSett
         return 0;
     }
     if !allowed_now(s, now) { return 0; }
-    let rows: Vec<NotifRow> = sqlx::query_as("SELECT id,category,priority,title,body,ref_kind,ref_id,created_at,read_at,shown_at FROM notification WHERE shown_at IS NULL ORDER BY id LIMIT 20")
+    let rows: Vec<NotifRow> = sqlx::query_as("SELECT id,category,priority,title,body,ref_kind,ref_id,created_at,read_at,shown_at,source,account_id,student_id FROM notification WHERE shown_at IS NULL ORDER BY id LIMIT 20")
         .fetch_all(pool).await.unwrap_or_default();
     let mut shown = 0;
     for n in rows {

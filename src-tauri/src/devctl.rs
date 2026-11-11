@@ -47,7 +47,73 @@ pub fn spawn(app: AppHandle, data_dir: PathBuf) {
                             Ok(v) => tracing::info!("devctl verify: versión {} → {} | {}", v.id, v.state, v.confirmation_evidence.unwrap_or_default()),
                             Err(e) => tracing::warn!("devctl verify: {e}") }
                     }
-                    ("hide", _) => { window::set_visible(&app, false); }
+                    // ── Familias (solo desarrollo) ──
+                    ("fopen", _) => { let dd = data_dir.clone(); if let Err(e) = crate::familias::window::open(&app, &dd, true).await { tracing::warn!("devctl fopen: {e}"); } }
+                    ("fhide", _) => { crate::familias::window::set_visible(&app, false); }
+                    ("frecon", _) => { match crate::familias::commands::familias_recon(app.clone()).await { Ok(()) => tracing::info!("devctl frecon: pedido"), Err(e) => tracing::warn!("devctl frecon: {e}") } }
+                    ("fsync", _) => { match crate::familias::commands::run_sync(app.clone(), true).await { Ok(r) => tracing::info!("devctl fsync: {} recetas, {} elementos, {} fallos", r.recipes, r.seen, r.failed.len()), Err(e) => tracing::warn!("devctl fsync: {e}") } }
+                    ("fnav", _) => {
+                        if let (Some(w), Ok(u)) = (crate::familias::window::get(&app), crate::familias::window::entry_url().join(arg)) {
+                            if crate::familias::window::is_portal(&u) { let _ = w.navigate(u); tracing::info!("devctl fnav {}", crate::familias::window::safe_path(arg)); } else { tracing::warn!("devctl fnav: ruta rechazada"); }
+                        }
+                    }
+                    // feval <fichero.js>: ejecuta un script de LECTURA en el portal (solo desarrollo; el script solo puede llamar a ingest_familias).
+                    ("feval", _) => { if let (Some(w), Ok(js)) = (crate::familias::window::get(&app), tokio::fs::read_to_string(arg).await) { let _ = w.eval(js); tracing::info!("devctl feval"); } else { tracing::warn!("devctl feval: sin ventana o fichero ilegible"); } }
+                    // fcounts: recuentos de filas de Familias (sin contenido) en el log, para verificar la sincronización.
+                    // syncall: sincroniza Moodle y Familias a la vez y registra el resultado y el tiempo de cada una.
+                    ("syncall", _) => {
+                        let t = std::time::Instant::now();
+                        match crate::integration::sync_all(app.clone()).await {
+                            Ok(r) => { for o in &r { tracing::info!("devctl syncall: {} ok={} {} ms · {}", o.platform, o.ok, o.millis, o.message.chars().take(160).collect::<String>()); } tracing::info!("devctl syncall: total {} ms", t.elapsed().as_millis()); }
+                            Err(e) => tracing::warn!("devctl syncall: {e}"),
+                        }
+                    }
+                    ("fcounts", _) => {
+                        let st = app.state::<crate::state::AppState>();
+                        let mut out = vec![];
+                        for (name, sql) in [("alumnos", "SELECT count(*) FROM student WHERE removed_at IS NULL"), ("notas", "SELECT count(*) FROM grade_record WHERE removed_at IS NULL"), ("faltas", "SELECT count(*) FROM attendance_record WHERE removed_at IS NULL"), ("faltas_injustificadas", "SELECT count(*) FROM attendance_record WHERE removed_at IS NULL AND justified=0 AND kind='falta'"), ("retrasos", "SELECT count(*) FROM attendance_record WHERE removed_at IS NULL AND kind='retraso'"), ("mensajes", "SELECT count(*) FROM school_message WHERE removed_at IS NULL"), ("mensajes_sin_leer", "SELECT count(*) FROM school_message WHERE removed_at IS NULL AND read_in_portal=0"), ("avisos_familias", "SELECT count(*) FROM notification WHERE source='familias'")] {
+                            let n: i64 = sqlx::query_scalar(sql).fetch_one(&st.pool).await.unwrap_or(-1);
+                            out.push(format!("{name}={n}"));
+                        }
+                        tracing::info!("devctl fcounts: {}", out.join(" "));
+                    }
+                    ("fclick", _) => { if let Some(w) = crate::familias::window::get(&app) { let a = serde_json::to_string(&serde_json::json!({ "text": arg }).to_string()).unwrap(); let _ = w.eval(format!("window.__fmRun && window.__fmRun('click', {a})")); } }
+                    // fingest <tipo> <fichero.json>: aplica un payload simulado por el MISMO camino de validación y persistencia que el portal.
+                    ("fingest", _) => {
+                        let (kind, file) = arg.split_once(' ').unwrap_or(("", ""));
+                        let st = app.state::<crate::state::AppState>();
+                        let acc = crate::accounts::ensure(&st.pool, "familias").await.unwrap_or(0);
+                        match tokio::fs::read_to_string(file).await.ok().and_then(|t| serde_json::from_str(&t).ok()) {
+                            Some(v) => match crate::familias::commands::apply(&st.pool, acc, kind, v).await { Ok(s) => tracing::info!("devctl fingest {kind}: {} vistos, {} cambios", s.seen, s.changed), Err(e) => tracing::warn!("devctl fingest {kind}: {e}") },
+                            None => tracing::warn!("devctl fingest: fichero ilegible"),
+                        }
+                    }
+                    ("meval", Some(w)) => { if let Ok(js) = tokio::fs::read_to_string(arg).await { let _ = w.eval(js); tracing::info!("devctl meval: {arg}"); } }
+        ("syncfull", _) => { match crate::commands::moodle_sync_full(app.clone()).await { Ok(r) => tracing::info!("devctl syncfull: {} cursos, {} tareas, {} fallos", r.courses, r.assignments, r.failed.len()), Err(e) => tracing::warn!("devctl syncfull: {e}") } }
+        ("audio", _) => {
+            use tauri::Listener;
+            let frames = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Vec<u8>>::new()));
+            let f2 = frames.clone();
+            let id = app.listen("audio-levels", move |e| { if let Ok(v) = serde_json::from_str::<Vec<u8>>(e.payload()) { f2.lock().unwrap().push(v); } });
+            match crate::audio::audio_viz_start(app.clone()) { Ok(()) => tracing::info!("devctl audio: captura iniciada"), Err(e) => tracing::warn!("devctl audio: {e}") }
+            tokio::time::sleep(Duration::from_secs(arg.parse().unwrap_or(8))).await;
+            crate::audio::audio_viz_stop(); app.unlisten(id);
+            let fr = frames.lock().unwrap();
+            let peak = fr.iter().map(|f| *f.iter().max().unwrap_or(&0)).max().unwrap_or(0);
+            let quiet = fr.iter().filter(|f| f.iter().all(|v| *v == 0)).count();
+            let hot = fr.iter().max_by_key(|f| *f.iter().max().unwrap_or(&0)).map(|f| f.iter().enumerate().max_by_key(|(_, v)| **v).map(|(i, _)| i).unwrap_or(0));
+            for (i, f) in fr.iter().enumerate().filter(|(i, _)| i % 24 == 0) { tracing::info!("devctl audio t≈{:.1}s {:?}", i as f32 / 47.0, f); }
+            tracing::info!("devctl audio: {} fotogramas, {} en silencio, pico {} (banda {:?}), muestra {:?}", fr.len(), quiet, peak, hot, fr.iter().max_by_key(|f| *f.iter().max().unwrap_or(&0)));
+        }
+        ("fcookies", _) => {
+            // Solo metadatos (nombre, dominio, caducidad): nunca valores.
+            match tauri::async_runtime::spawn_blocking(|| crate::session_store::load_for(crate::session_store::FAMILIAS_USER)).await.ok().flatten() {
+                Some(v) => for c in v { tracing::info!("devctl fcookies: {} dominio={:?} ruta={:?} caduca={:?} secure={} httponly={} valor_len={}", c.name, c.domain, c.path, c.expires.map(|t| t - chrono::Utc::now().timestamp()), c.secure, c.http_only, c.value.len()); },
+                None => tracing::info!("devctl fcookies: sin cookies guardadas"),
+            }
+        }
+        ("setting", _) => { if let Some((k, v)) = arg.split_once(' ') { match crate::db::set_setting(&app.state::<crate::state::AppState>().pool, k, v.trim()).await { Ok(()) => tracing::info!("devctl setting {k}={}", v.trim()), Err(e) => tracing::warn!("devctl setting: {e}") } } }
+        ("hide", _) => { window::set_visible(&app, false); }
                     ("wait", _) => tokio::time::sleep(Duration::from_secs(arg.parse().unwrap_or(1))).await,
                     ("nav", Some(w)) => match window::base_url().join(arg) {
                         Ok(u) if window::is_allowed(&u) => { let _ = w.navigate(u); tracing::info!("devctl nav {}", arg.split('?').next().unwrap_or("")); }

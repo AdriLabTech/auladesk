@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-status"
+description = "Enables the familias_status command without any pre-configured scope."
+commands.allow = ["familias_status"]
+
+[[permission]]
+identifier = "deny-familias-status"
+description = "Denies the familias_status command without any pre-configured scope."
+commands.deny = ["familias_status"]

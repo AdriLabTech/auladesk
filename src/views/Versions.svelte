@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t as tt } from '../lib/i18n.svelte';
+  import { trapFocus } from '../lib/a11y';
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open as pickFile } from '@tauri-apps/plugin-dialog';
@@ -20,7 +22,7 @@
   let confirmSubmit = $state<VersionRow | null>(null); let agree = $state(false);
   type Run = { id: number; stage: string; text: string; error: string; done: boolean; ok: boolean };
   let subRun = $state<Run | null>(null);
-  const STEPS: [string, string][] = [['check', 'Comprobar el archivo preparado'], ['open', 'Abrir la entrega en Moodle'], ['upload', 'Subir el archivo'], ['submit_save', 'Guardar la entrega'], ['submit_final', 'Enviar la tarea'], ['submit_confirm', 'Confirmar el envío'], ['verify', 'Verificar con Moodle (SHA-256)']];
+  const STEPS: [string, string][] = $derived([['check', tt('Comprobar el archivo preparado')], ['open', tt('Abrir la entrega en Moodle')], ['upload', tt('Subir el archivo')], ['submit_save', tt('Guardar la entrega')], ['submit_final', tt('Enviar la tarea')], ['submit_confirm', tt('Confirmar el envío')], ['verify', tt('Verificar con Moodle (SHA-256)')]]);
   const stepState = (key: string) => {
     if (!subRun) return 'pending'; const cur = STEPS.findIndex((s) => s[0] === subRun!.stage), me = STEPS.findIndex((s) => s[0] === key);
     if (subRun.done) return 'done'; if (subRun.error && me === cur) return 'error'; return me < cur ? 'done' : me === cur ? 'current' : 'pending';
@@ -31,7 +33,7 @@
   async function doSubmit() {
     const v = confirmSubmit; if (!v || !agree) return;
     confirmSubmit = null; agree = false; subRun = { id: v.id, stage: 'check', text: 'Empezando…', error: '', done: false, ok: false };
-    try { const r = await submissionSubmit(v.id, true, hasSubmission); subRun = { ...subRun!, done: true, ok: r.state === 'confirmed', text: r.state === 'confirmed' ? 'Entrega confirmada por Moodle.' : 'Entrega enviada; Moodle aún no muestra un archivo idéntico (puedes pulsar «Comprobar entrega» más tarde).' }; }
+    try { const r = await submissionSubmit(v.id, true, hasSubmission); subRun = { ...subRun!, done: true, ok: r.state === 'confirmed', text: r.state === 'confirmed' ? tt('Entrega confirmada por Moodle.') : tt('Entrega enviada; Moodle aún no muestra un archivo idéntico (puedes pulsar «Comprobar entrega» más tarde).') }; }
     catch (e) { subRun = { ...subRun!, error: String(e) }; }
     await load(); onChange();
   }
@@ -62,29 +64,29 @@
   {@const st = versionState[v.state] ?? { label: v.state, tone: 'muted' }}
   <article class="ver">
     <header>
-      <strong>{activityId === undefined ? `${v.activity_name} · ` : ''}Versión {v.version}</strong>
+      <strong>{activityId === undefined ? `${v.activity_name} · ` : ''}{tt('Versión')} {v.version}</strong>
       <span class="badge b-{st.tone}">{st.label}</span>
       {#if activityId === undefined}<span class="muted">{v.course_name}</span>{/if}
     </header>
     <p class="file"><b>{v.file_name}</b> <span class="muted">· {fmtSize(v.size_bytes)} · preparada {fmtDate(v.created_at)}</span></p>
     <p class="muted mono">SHA-256 {v.sha256}</p>
-    <p class="muted small">Copia local: <code>{v.rel_path}</code></p>
-    {#if v.sent_at}<p class="small">Moodle registra el envío: {fmtDate(v.sent_at)}{v.deadline_at ? ` · fecha límite ${fmtDate(v.deadline_at)}` : ''}</p>{/if}
+    <p class="muted small">{tt('Copia local:')} <code>{v.rel_path}</code></p>
+    {#if v.sent_at}<p class="small">{tt('Moodle registra el envío:')} {fmtDate(v.sent_at)}{v.deadline_at ? ` · ${tt('fecha límite')} ${fmtDate(v.deadline_at)}` : ''}</p>{/if}
     {#if v.confirmation_evidence}<p class="evid small">{v.confirmation_evidence}</p>{/if}
     {#if v.error_detail}<p class="small err-t">{v.error_detail}</p>{/if}
-    {#if schedOf(v)}{@const sc = schedOf(v)!}<p class="small sched"><Icon name="calendar" size={14} /> Entrega programada para <b>{fmtDate(sc.run_at)}</b>{sc.attempts ? ` · intento ${sc.attempts}` : ''}{sc.last_error ? ` · ${sc.last_error}` : ''}
-      {#if sc.state === 'scheduled'}<button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => scheduleCancel(sc.id), 'Programación cancelada.')}>Cancelar programación</button>{/if}</p>{/if}
-    {#if v.grade}<p class="small">Calificación: <b>{v.grade}</b>{v.teacher_feedback ? ` · ${v.teacher_feedback}` : ''}</p>{/if}
+    {#if schedOf(v)}{@const sc = schedOf(v)!}<p class="small sched"><Icon name="calendar" size={14} /> {tt('Entrega programada para')} <b>{fmtDate(sc.run_at)}</b>{sc.attempts ? ` · intento ${sc.attempts}` : ''}{sc.last_error ? ` · ${sc.last_error}` : ''}
+      {#if sc.state === 'scheduled'}<button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => scheduleCancel(sc.id), 'Programación cancelada.')}>{tt('Cancelar programación')}</button>{/if}</p>{/if}
+    {#if v.grade}<p class="small">{tt('Calificación:')} <b>{v.grade}</b>{v.teacher_feedback ? ` · ${v.teacher_feedback}` : ''}</p>{/if}
     <div class="acts">
-      <button class="btn sm" onclick={() => openViewer({ id: v.file_id, name: v.file_name })}>Ver copia</button>
-      <button class="btn sm" onclick={() => fileOpen(v.file_id).catch((e) => (error = String(e)))}>Abrir con el sistema</button>
-      <button class="btn sm" onclick={() => fileReveal(v.file_id).catch((e) => (error = String(e)))}>Mostrar carpeta</button>
+      <button class="btn sm" onclick={() => openViewer({ id: v.file_id, name: v.file_name })}>{tt('Ver copia')}</button>
+      <button class="btn sm" onclick={() => fileOpen(v.file_id).catch((e) => (error = String(e)))}>{tt('Abrir con el sistema')}</button>
+      <button class="btn sm" onclick={() => fileReveal(v.file_id).catch((e) => (error = String(e)))}>{tt('Mostrar carpeta')}</button>
       {#if open(v)}
         <button class="btn sm primary" disabled={busy !== null || subRun !== null} onclick={() => { agree = false; confirmSubmit = v; }}><Icon name="submissions" size={14} /> {hasSubmission ? 'Reemplazar entrega desde AulaDesk…' : 'Entregar desde AulaDesk…'}</button>
-        {#if !schedOf(v)}<button class="btn sm" disabled={busy !== null || subRun !== null} onclick={() => (scheduling = v)}>Programar entrega…</button>{/if}
-        <button class="btn sm" disabled={busy !== null} onclick={() => (confirmStart = v)}>Entregar a mano en Moodle…</button>
+        {#if !schedOf(v)}<button class="btn sm" disabled={busy !== null || subRun !== null} onclick={() => (scheduling = v)}>{tt('Programar entrega…')}</button>{/if}
+        <button class="btn sm" disabled={busy !== null} onclick={() => (confirmStart = v)}>{tt('Entregar a mano en Moodle…')}</button>
         <button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => submissionVerify(v.id), 'Comprobación terminada: revisa el estado.')}>{busy === v.id ? 'Comprobando…' : 'Comprobar entrega'}</button>
-        <button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => submissionCancel(v.id), 'Versión cancelada (se conserva en el historial).')}>Cancelar</button>
+        <button class="btn sm" disabled={busy !== null} onclick={() => run(v.id, () => submissionCancel(v.id), 'Versión cancelada (se conserva en el historial).')}>{tt('Cancelar')}</button>
       {/if}
     </div>
   </article>
@@ -95,33 +97,33 @@
 {#if scheduling}<ScheduleForm version={scheduling} onCancel={() => (scheduling = null)} onDone={async () => { scheduling = null; notice = 'Entrega programada. AulaDesk intentará entregar a esa hora (app abierta y sesión de Moodle iniciada).'; await load(); onChange(); }} />{/if}
 
 {#if confirmSubmit}
-  <div class="overlay" role="dialog" aria-modal="true" aria-label="Confirmar la entrega">
+  <div class="overlay" role="dialog" use:trapFocus aria-modal="true" aria-label={tt('Confirmar la entrega')}>
     <div class="modal card">
       <h2>{hasSubmission ? 'Modificar la entrega de' : 'Entregar'} «{confirmSubmit.activity_name}»</h2>
       <p class="muted small">{confirmSubmit.course_name}{confirmSubmit.deadline_at ? ` · plazo ${fmtDate(confirmSubmit.deadline_at)}` : ''}</p>
       <div class="sendbox">
-        <div><span class="muted small">Archivo</span><b>{confirmSubmit.file_name}</b></div>
-        <div><span class="muted small">Tamaño</span><b>{fmtSize(confirmSubmit.size_bytes)}</b></div>
-        <div><span class="muted small">SHA-256</span><code title={confirmSubmit.sha256}>{confirmSubmit.sha256.slice(0, 24)}…</code></div>
+        <div><span class="muted small">{tt('Archivo')}</span><b>{confirmSubmit.file_name}</b></div>
+        <div><span class="muted small">{tt('Tamaño')}</span><b>{fmtSize(confirmSubmit.size_bytes)}</b></div>
+        <div><span class="muted small">{tt('SHA-256')}</span><code title={confirmSubmit.sha256}>{confirmSubmit.sha256.slice(0, 24)}…</code></div>
       </div>
-      {#if hasSubmission}<p class="msg err replace" role="alert"><b>Esta tarea ya tiene una entrega en Moodle.</b> Al continuar, AulaDesk <b>sustituirá los archivos ya entregados</b> por este (modificar entrega). Si no puede eliminar los anteriores, se detiene sin cambiar nada.</p>{/if}
-      <p>AulaDesk subirá <b>exactamente este archivo</b> al formulario oficial de Moodle, guardará la entrega y, si la tarea lo exige, la enviará para calificar. Después comprobará que Moodle muestra un archivo con el mismo SHA-256.</p>
-      <p class="muted small">Se detendrá sin enviar nada si la entrega ya tiene archivos, si Moodle muestra algo inesperado o si el archivo ha cambiado. En ese caso Moodle queda abierto para que termines a mano.</p>
-      <label class="agree"><input type="checkbox" bind:checked={agree} /> Entiendo que esto <b>{hasSubmission ? 'reemplaza mi entrega en Moodle' : 'envía mi trabajo a Moodle'}</b> y lo verá el profesorado.</label>
+      {#if hasSubmission}<p class="msg err replace" role="alert"><b>{tt('Esta tarea ya tiene una entrega en Moodle.')}</b> {tt('Al continuar, AulaDesk')} <b>{tt('sustituirá los archivos ya entregados')}</b> {tt('por este (modificar entrega). Si no puede eliminar los anteriores, se detiene sin cambiar nada.')}</p>{/if}
+      <p>{tt('AulaDesk subirá')} <b>{tt('exactamente este archivo')}</b> {tt('al formulario oficial de Moodle, guardará la entrega y, si la tarea lo exige, la enviará para calificar. Después comprobará que Moodle muestra un archivo con el mismo SHA-256.')}</p>
+      <p class="muted small">{tt('Se detendrá sin enviar nada si la entrega ya tiene archivos, si Moodle muestra algo inesperado o si el archivo ha cambiado. En ese caso Moodle queda abierto para que termines a mano.')}</p>
+      <label class="agree"><input type="checkbox" bind:checked={agree} /> {tt('Entiendo que esto')} <b>{hasSubmission ? 'reemplaza mi entrega en Moodle' : 'envía mi trabajo a Moodle'}</b> {tt('y lo verá el profesorado.')}</label>
       <div class="acts">
         <button class="btn primary" disabled={!agree} onclick={doSubmit}>{hasSubmission ? 'Reemplazar entrega ahora' : 'Entregar ahora'}</button>
-        <button class="btn" onclick={() => (confirmSubmit = null)}>Cancelar</button>
+        <button class="btn" onclick={() => (confirmSubmit = null)}>{tt('Cancelar')}</button>
       </div>
     </div>
   </div>
 {/if}
 
 {#if subRun}
-  <div class="overlay" role="dialog" aria-modal="true" aria-label="Progreso de la entrega">
+  <div class="overlay" role="dialog" use:trapFocus aria-modal="true" aria-label={tt('Progreso de la entrega')}>
     <div class="modal card">
       <h2>{subRun.done ? (subRun.ok ? 'Entrega confirmada' : 'Entrega enviada') : subRun.error ? 'Entrega detenida' : 'Entregando…'}</h2>
       <ol class="steps">{#each STEPS as [k, label]}{@const st = stepState(k)}<li class={st}><i>{#if st === 'done'}<Icon name="check" size={12} stroke={3} />{:else if st === 'error'}<Icon name="x" size={12} stroke={3} />{/if}</i>{label}</li>{/each}</ol>
-      {#if subRun.error}<p class="msg err" role="alert">{subRun.error}<br /><small>Moodle se ha abierto para que puedas terminar a mano. No se ha dado por confirmada ninguna entrega.</small></p>
+      {#if subRun.error}<p class="msg err" role="alert">{subRun.error}<br /><small>{tt('Moodle se ha abierto para que puedas terminar a mano. No se ha dado por confirmada ninguna entrega.')}</small></p>
       {:else if subRun.done}<p class="msg ok" role="status">{subRun.text}</p>
       {:else}<p class="muted small">{subRun.text}</p>{/if}
       <div class="acts"><button class="btn primary" disabled={!subRun.done && !subRun.error} onclick={() => (subRun = null)}>{subRun.done || subRun.error ? 'Cerrar' : 'Espera…'}</button></div>
@@ -130,19 +132,20 @@
 {/if}
 
 {#if confirmStart}
-  <div class="overlay" role="dialog" aria-modal="true" aria-label="Confirmar apertura de la entrega">
+  <div class="overlay" role="dialog" use:trapFocus aria-modal="true" aria-label={tt('Confirmar apertura de la entrega')}>
     <div class="modal card">
-      <h2>Abrir la entrega en Moodle</h2>
-      <p>Se abrirá la página oficial de entrega de <b>«{confirmStart.activity_name}»</b>.</p>
-      <p><b>AulaDesk no enviará nada.</b> Tendrás que adjuntar tú el archivo <b>{confirmStart.file_name}</b> (está en <code>{confirmStart.rel_path}</code>) y pulsar «Guardar cambios» y, si la tarea lo pide, «Enviar tarea».</p>
-      <p class="muted">Después vuelve aquí y pulsa «Comprobar entrega»: solo se marcará como confirmada si Moodle muestra un archivo con el mismo SHA-256.</p>
+      <h2>{tt('Abrir la entrega en Moodle')}</h2>
+      <p>{tt('Se abrirá la página oficial de entrega de')} <b>«{confirmStart.activity_name}»</b>.</p>
+      <p><b>{tt('AulaDesk no enviará nada.')}</b> {tt('Tendrás que adjuntar tú el archivo')} <b>{confirmStart.file_name}</b> {tt('(está en')} <code>{confirmStart.rel_path}</code>{tt(') y pulsar «Guardar cambios» y, si la tarea lo pide, «Enviar tarea».')}</p>
+      <p class="muted">{tt('Después vuelve aquí y pulsa «Comprobar entrega»: solo se marcará como confirmada si Moodle muestra un archivo con el mismo SHA-256.')}</p>
       <div class="acts">
-        <button class="btn primary" onclick={() => { const v = confirmStart!; confirmStart = null; run(v.id, () => submissionStart(v.id, true)); }}>Sí, abrir Moodle</button>
+        <button class="btn primary" onclick={() => { const v = confirmStart!; confirmStart = null; run(v.id, () => submissionStart(v.id, true)); }}>{tt('Sí, abrir Moodle')}</button>
         <button class="btn" onclick={() => (confirmStart = null)}>No</button>
       </div>
     </div>
   </div>
 {/if}
+
 
 <style>
   .ver { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-top: 12px; animation: rise .4s var(--ease) backwards; transition: border-color .2s; } .ver:hover { border-color: var(--line-strong); } .ver p { margin: 4px 0; }

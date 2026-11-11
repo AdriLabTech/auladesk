@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-set-active-student"
+description = "Enables the familias_set_active_student command without any pre-configured scope."
+commands.allow = ["familias_set_active_student"]
+
+[[permission]]
+identifier = "deny-familias-set-active-student"
+description = "Denies the familias_set_active_student command without any pre-configured scope."
+commands.deny = ["familias_set_active_student"]

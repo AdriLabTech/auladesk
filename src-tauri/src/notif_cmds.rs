@@ -49,7 +49,7 @@ pub async fn notif_settings_set(st: State<'_, AppState>, settings: NotifSettings
 #[tauri::command]
 pub async fn notif_test(st: State<'_, AppState>) -> AppResult<()> {
     let id = notif::add(&st.pool, "reminder", 0, "Prueba de AulaDesk", Some("Si ves esto, las notificaciones de escritorio funcionan."), None, None).await?;
-    let n: NotifRow = sqlx::query_as("SELECT id,category,priority,title,body,ref_kind,ref_id,created_at,read_at,shown_at FROM notification WHERE id=?").bind(id).fetch_one(&st.pool).await?;
+    let n: NotifRow = sqlx::query_as("SELECT id,category,priority,title,body,ref_kind,ref_id,created_at,read_at,shown_at,source,account_id,student_id FROM notification WHERE id=?").bind(id).fetch_one(&st.pool).await?;
     NotifySend.show(&n).map_err(AppError::Other)?;
     sqlx::query("UPDATE notification SET shown_at=? WHERE id=?").bind(now()).bind(id).execute(&st.pool).await?;
     Ok(())

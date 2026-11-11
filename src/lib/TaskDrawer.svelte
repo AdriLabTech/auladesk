@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t as tt } from './i18n.svelte';
+  import { trapFocus } from './a11y';
   import type { TaskRow } from './api';
   import { stateInfo } from './format';
   import Icon from './Icon.svelte';
@@ -14,17 +16,18 @@
 <svelte:window onkeydown={key} />
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="scrim" onclick={onClose}></div>
-<div class="drawer" role="dialog" tabindex="-1" aria-label={`Detalle: ${task.name}`}>
+<div class="drawer" role="dialog" use:trapFocus tabindex="-1" aria-label={`Detalle: ${task.name}`}>
   <header>
     <div>
-      <span class="muted small">{task.course_name}{task.section_position !== null ? ` · ${task.section_position === 0 ? 'General' : 'Tema ' + task.section_position}` : ''}</span>
+      <span class="muted small">{task.course_name}{task.section_position !== null ? ` · ${task.section_position === 0 ? tt('General') : tt('Tema {n}', { n: task.section_position })}` : ''}</span>
       <h2>{task.name}</h2>
       <span class="badges"><span class="badge b-{si.tone}">{stale ? 'Antigua · sin entregar' : si.label}</span>{#if task.grade}<span class="grade">{task.grade}</span>{/if}</span>
     </div>
-    <button class="btn ghost icon" onclick={onClose} aria-label="Cerrar detalle"><Icon name="x" size={18} /></button>
+    <button class="btn ghost icon" onclick={onClose} aria-label={tt('Cerrar detalle')}><Icon name="x" size={18} /></button>
   </header>
   <div class="drawer-body"><TaskDetail t={task} {onChange} /></div>
 </div>
+
 
 <style>
   .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .45); animation: fade .2s backwards; }

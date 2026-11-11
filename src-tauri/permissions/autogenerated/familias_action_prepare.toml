@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-action-prepare"
+description = "Enables the familias_action_prepare command without any pre-configured scope."
+commands.allow = ["familias_action_prepare"]
+
+[[permission]]
+identifier = "deny-familias-action-prepare"
+description = "Denies the familias_action_prepare command without any pre-configured scope."
+commands.deny = ["familias_action_prepare"]

@@ -28,6 +28,8 @@ Publicarlo como proyecto **independiente, gratuito, de código abierto, local y 
 - Riesgo residual: los **términos de uso de Séneca/PASEN** (no localizados) podrían prohibir clientes no oficiales; la Junta podría bloquear o cambiar la web *(no verificado)*. Mitigación: comunicación previa al **Servicio de atención / Delegación de Protección de Datos** de la Consejería, ofreciendo el código; texto del README que no prometa disponibilidad.
 - Derecho «sui generis» de bases de datos (TRLPI): extraer para uso personal una parte no sustancial es el uso normal de un usuario; no se ofrece ningún servicio de volcado masivo ni agregación entre usuarios. *(criterio general, no verificado con jurisprudencia)*.
 
+**Implementado (2026-11-11):** `familias::commands` fuerza una sincronización automática como máximo cada 60 min y una manual cada 5, sin paralelismo y con pausa entre pasos, y hay interruptor «pausar». Pendiente de implementar: parada tras errores 4xx/5xx repetidos y reintentos con espera creciente (hoy un fallo cuenta como intento y espera el intervalo normal).
+
 ## 5. Protección de datos (RGPD / LOPDGDD)
 - Con arquitectura **local, sin servidor del autor, sin telemetría ni informes de errores**, el autor **no trata** datos personales: no es responsable ni encargado. El usuario (familia) trata los datos de sus hijos para fines domésticos. **Mantener esa propiedad es el punto crítico**: cualquier telemetría, nube propia o servicio de soporte con acceso a datos cambiaría el análisis.
 - **Datos de menores (PASEN)**: cifrados en reposo con SQLCipher (ver `docs/SQLCIPHER.md`), clave en el llavero del sistema, sin logs con contenido, aislamiento por alumno.

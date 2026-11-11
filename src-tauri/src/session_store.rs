@@ -36,21 +36,30 @@ pub fn to_cookie(s: &StoredCookie) -> Cookie<'static> {
     b.build()
 }
 
-fn entry() -> Result<keyring::Entry, String> { keyring::Entry::new(SERVICE, USER).map_err(|e| e.to_string()) }
+/// Una entrada de llavero por plataforma: así las cookies de un portal nunca se restauran en el WebView de otro,
+/// aunque compartan dominio (`*.juntadeandalucia.es`). La de Moodle conserva su nombre original para no perder sesiones.
+pub const MOODLE_USER: &str = USER;
+pub const FAMILIAS_USER: &str = "session-familias";
 
-pub fn save(cookies: &[StoredCookie]) -> Result<(), String> {
+fn entry_for(user: &str) -> Result<keyring::Entry, String> { keyring::Entry::new(SERVICE, user).map_err(|e| e.to_string()) }
+
+pub fn save_for(user: &str, cookies: &[StoredCookie]) -> Result<(), String> {
     let json = serde_json::to_string(cookies).map_err(|e| e.to_string())?;
-    entry()?.set_password(&json).map_err(|e| e.to_string())
+    entry_for(user)?.set_password(&json).map_err(|e| e.to_string())
 }
 
-pub fn load() -> Option<Vec<StoredCookie>> {
-    let json = entry().ok()?.get_password().ok()?;
+pub fn load_for(user: &str) -> Option<Vec<StoredCookie>> {
+    let json = entry_for(user).ok()?.get_password().ok()?;
     serde_json::from_str::<Vec<StoredCookie>>(&json).ok().filter(|v| !v.is_empty())
 }
 
-pub fn forget() -> Result<(), String> {
-    match entry()?.delete_credential() { Ok(()) | Err(keyring::Error::NoEntry) => Ok(()), Err(e) => Err(e.to_string()) }
+pub fn forget_for(user: &str) -> Result<(), String> {
+    match entry_for(user)?.delete_credential() { Ok(()) | Err(keyring::Error::NoEntry) => Ok(()), Err(e) => Err(e.to_string()) }
 }
+
+pub fn save(cookies: &[StoredCookie]) -> Result<(), String> { save_for(MOODLE_USER, cookies) }
+pub fn load() -> Option<Vec<StoredCookie>> { load_for(MOODLE_USER) }
+pub fn forget() -> Result<(), String> { forget_for(MOODLE_USER) }
 
 #[cfg(test)]
 mod tests {
@@ -62,6 +71,11 @@ mod tests {
         assert!(!relevant(Some("youtube.com")));
         assert!(!relevant(Some("evil-juntadeandalucia.es")));
         assert!(!relevant(None));
+    }
+    #[test]
+    fn each_platform_has_its_own_keyring_entry() {
+        assert_ne!(MOODLE_USER, FAMILIAS_USER);
+        assert_eq!(MOODLE_USER, "moodle-session-cookies", "la entrada de Moodle no puede cambiar: perdería las sesiones guardadas");
     }
     #[test]
     fn roundtrip_keeps_attributes() {

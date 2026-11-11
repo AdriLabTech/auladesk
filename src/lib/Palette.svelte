@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { trapFocus } from './a11y';
+  import { t as tr } from './i18n.svelte';
   import { tick } from 'svelte';
-  import { sections } from './sections';
+  import { sections, shortcutSections } from './sections';
+  import { fam, pickStudent } from './familias.svelte';
   import { nav, go } from './nav.svelte';
   import { listCourses, taskList } from './api';
   import Icon from './Icon.svelte';
@@ -22,7 +25,8 @@
   const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const items = $derived.by<Item[]>(() => {
     const all: Item[] = [
-      ...sections.map((s, i) => ({ key: 's' + s.id, label: s.label, hint: `Ir a · Ctrl+${i + 1}`, icon: s.icon, run: () => go(s.id) })),
+      ...sections.filter((s) => !('needsStudents' in s && s.needsStudents) || (fam.status?.students.length ?? 0) > 0).map((s) => { const i = shortcutSections.findIndex((x) => x.id === s.id); return { key: 's' + s.id, label: s.group === 'core' ? tr(s.label) : `${s.group === 'moodle' ? 'Moodle' : 'Familias'} · ${tr(s.label)}`, hint: i >= 0 ? `Ir a · Ctrl+${i + 1}` : 'Ir a', icon: s.icon, run: () => go(s.id) }; }),
+      ...(fam.status?.students ?? []).map((a) => ({ key: 'f' + a.id, label: a.display_name, hint: 'Familias · alumno', icon: 'cap', run: () => { pickStudent(a.id); go('f_home'); } })),
       ...courses.map((c) => ({ key: 'c' + c.id, label: c.name, hint: 'Asignatura', icon: 'courses', run: () => go('courses', { courseId: c.id }) })),
       ...tasks.map((t) => ({ key: 't' + t.id, label: t.name, hint: `Tarea · ${t.course}`, icon: 'tasks', run: () => go('tasks', { taskId: t.id }) })),
     ];
@@ -45,8 +49,8 @@
 {#if nav.palette}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="veil" onclick={close}>
-    <div class="pal glass" role="dialog" tabindex="-1" aria-modal="true" aria-label="Paleta de comandos" onclick={(e) => e.stopPropagation()}>
-      <div class="in"><Icon name="search" size={18} /><input bind:this={input} bind:value={q} onkeydown={key} placeholder="Busca una sección, asignatura o tarea…" aria-label="Buscar" /><kbd>Esc</kbd></div>
+    <div class="pal glass" role="dialog" use:trapFocus tabindex="-1" aria-modal="true" aria-label={tr('Paleta de comandos')} onclick={(e) => e.stopPropagation()}>
+      <div class="in"><Icon name="search" size={18} /><input bind:this={input} bind:value={q} onkeydown={key} placeholder={tr('Busca una sección, asignatura o tarea…')} aria-label={tr('Buscar')} /><kbd>Esc</kbd></div>
       <ul role="listbox">
         {#each items as it, i (it.key)}
           <li class:on={i === sel} role="option" aria-selected={i === sel}>
@@ -54,7 +58,7 @@
               <span class="ico"><Icon name={it.icon} size={16} /></span><span class="l">{it.label}</span><small class="muted">{it.hint}</small>
             </button>
           </li>
-        {:else}<li class="none muted">Sin resultados para «{q}»</li>{/each}
+        {:else}<li class="none muted">{tr('Sin resultados para «{q}»', { q })}</li>{/each}
       </ul>
       <footer class="muted"><span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span><span><kbd>Enter</kbd> abrir</span><span><kbd>Esc</kbd> cerrar</span></footer>
     </div>

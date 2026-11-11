@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tt } from '../lib/i18n.svelte';
   import { onMount } from 'svelte';
   import { taskList, taskSetFlags, noteSet, downloadActivity, moodleOpen, moodleNavigate, getSetting, setSetting, listFiles, type TaskRow, type TaskState, type FileRow } from '../lib/api';
   import { fmtDue, fmtRemaining, fmtDate, stateInfo, hue } from '../lib/format';
@@ -77,16 +78,16 @@
         .filter((c) => c.items.length);
     }
     const defs: [string, string, string, string | undefined, (a: TaskRow, b: TaskRow) => number][] = [
-      ['late', 'Vencidas', 'red', undefined, dueDesc],
-      ['todo', 'Por hacer', 'blue', undefined, dueAsc],
-      ['doing', 'En curso', 'violet', undefined, dueAsc],
-      ['done', 'Hechas', 'amber', 'Marcadas por ti; no enviadas a Moodle', dueDesc],
-      ['nodate', 'Sin fecha', 'muted', undefined, (a, b) => a.name.localeCompare(b.name)],
-      ['sent', 'Entregadas', 'green', undefined, dueDesc],
-      ['graded', 'Evaluadas', 'teal', undefined, dueDesc],
+      ['late', tt('Vencidas'), 'red', undefined, dueDesc],
+      ['todo', tt('Por hacer'), 'blue', undefined, dueAsc],
+      ['doing', tt('En curso'), 'violet', undefined, dueAsc],
+      ['done', tt('Hechas'), 'amber', tt('Marcadas por ti; no enviadas a Moodle'), dueDesc],
+      ['nodate', tt('Sin fecha'), 'muted', undefined, (a, b) => a.name.localeCompare(b.name)],
+      ['sent', tt('Entregadas'), 'green', undefined, dueDesc],
+      ['graded', tt('Evaluadas'), 'teal', undefined, dueDesc],
     ];
     const out: Col[] = defs.map(([id, title, tone, hint, s]) => ({ id, title, hint, color: `var(--c-${tone})`, items: live.filter((t) => stateCol(t) === id).sort(s) }));
-    if (showStale) out.push({ id: 'stale', title: 'Antiguas', color: 'var(--c-muted)', hint: 'Vencidas hace más de 30 días', items: live.filter((t) => stateCol(t) === 'stale').sort(dueDesc) });
+    if (showStale) out.push({ id: 'stale', title: tt('Antiguas'), color: 'var(--c-muted)', hint: tt('Vencidas hace más de 30 días'), items: live.filter((t) => stateCol(t) === 'stale').sort(dueDesc) });
     return out;
   });
   // Columna del tablero por estado: lo que dice Moodle, salvo en tareas sin entregar, donde tu columna personal (local) manda.
@@ -150,69 +151,69 @@
   <div class="kc-top"><i class="dot" style="background: hsl({hue(t.course_id)} 70% 55%)"></i><span class="kc-course">{t.course_name}</span>{#if t.favorite}<Icon name="star" size={13} />{/if}</div>
   <b class="kc-title">{t.name}</b>
   <div class="kc-meta">
-    {#if t.state === 'sin_sincronizar'}<span class="kc-due muted">Sin datos de Moodle</span>
+    {#if t.state === 'sin_sincronizar'}<span class="kc-due muted">{tt('Sin datos de Moodle')}</span>
     {:else if t.due_at}<span class="kc-due" class:warn={urgent(t)} class:bad={t.state === 'fuera_de_plazo'}><Icon name="clock" size={12} />{fmtDue(t.due_at)}{#if todoStates.includes(t.state)}<em>{fmtRemaining(t.seconds_to_due)}</em>{/if}</span>
-    {:else}<span class="kc-due muted">Sin fecha límite</span>{/if}
+    {:else}<span class="kc-due muted">{tt('Sin fecha límite')}</span>{/if}
   </div>
   <div class="kc-foot">
     {#if by !== 'state'}<span class="badge b-{si.tone}">{stale(t) ? 'Antigua' : si.label}</span>{/if}
     {#if t.grade}<span class="grade">{t.grade}</span>{/if}
-    {#if t.priority > 0 && by !== 'priority'}<span class="kc-prio" title="Prioridad personal">{'●'.repeat(t.priority)}</span>{/if}
-    {#if t.local_files}<span class="kc-files" title="Archivos descargados"><Icon name="file" size={12} />{t.local_files}</span>{/if}
+    {#if t.priority > 0 && by !== 'priority'}<span class="kc-prio" title={tt('Prioridad personal')}>{'●'.repeat(t.priority)}</span>{/if}
+    {#if t.local_files}<span class="kc-files" title={tt('Archivos descargados')}><Icon name="file" size={12} />{t.local_files}</span>{/if}
   </div>
 {/snippet}
 
-<h1>Tareas y actividades</h1>
-<p class="muted" style="margin:4px 0 0">Estado y fecha límite de cada tarea, leídos de Moodle. Nada se envía desde aquí sin tu confirmación.</p>
+<h1>{tt('Tareas y actividades')}</h1>
+<p class="muted" style="margin:4px 0 0">{tt('Estado y fecha límite de cada tarea, leídos de Moodle. Nada se envía desde aquí sin tu confirmación.')}</p>
 {#if error && openId === null}<p class="msg err" role="alert">{error}</p>{/if}
 
 <div class="bar">
   {#if view === 'list'}
-    <div class="chips" role="group" aria-label="Grupo">
-      <button class="chip" class:on={group === 'todo'} onclick={() => (group = 'todo')}>Por hacer <i>{counts.todo}</i></button>
-      <button class="chip" class:on={group === 'done'} onclick={() => (group = 'done')}>Entregadas y evaluadas <i>{counts.done}</i></button>
-      <button class="chip" class:on={group === 'all'} onclick={() => (group = 'all')}>Todas <i>{tasks.length}</i></button>
+    <div class="chips" role="group" aria-label={tt('Grupo')}>
+      <button class="chip" class:on={group === 'todo'} onclick={() => (group = 'todo')}>{tt('Por hacer')} <i>{counts.todo}</i></button>
+      <button class="chip" class:on={group === 'done'} onclick={() => (group = 'done')}>{tt('Entregadas y evaluadas')} <i>{counts.done}</i></button>
+      <button class="chip" class:on={group === 'all'} onclick={() => (group = 'all')}>{tt('Todas')} <i>{tasks.length}</i></button>
     </div>
   {:else}
-    <div class="seg" role="group" aria-label="Agrupar el tablero por">
-      <button class:on={by === 'state'} onclick={() => setBy('state')}>Estado</button>
-      <button class:on={by === 'course'} onclick={() => setBy('course')}>Asignatura</button>
-      <button class:on={by === 'priority'} onclick={() => setBy('priority')}>Prioridad</button>
+    <div class="seg" role="group" aria-label={tt('Agrupar el tablero por')}>
+      <button class:on={by === 'state'} onclick={() => setBy('state')}>{tt('Estado')}</button>
+      <button class:on={by === 'course'} onclick={() => setBy('course')}>{tt('Asignatura')}</button>
+      <button class:on={by === 'priority'} onclick={() => setBy('priority')}>{tt('Prioridad')}</button>
     </div>
-    {#if staleCount}<button class="chip" class:on={showStale} onclick={() => (showStale = !showStale)}>Antiguas <i>{staleCount}</i></button>{/if}
+    {#if staleCount}<button class="chip" class:on={showStale} onclick={() => (showStale = !showStale)}>{tt('Antiguas')} <i>{staleCount}</i></button>{/if}
   {/if}
-  {#if counts.late}<span class="late"><Icon name="alert" size={15} />{counts.late} vencida(s) recientemente sin entregar</span>{/if}
-  <div class="seg view" role="group" aria-label="Vista">
-    <button class:on={view === 'list'} onclick={() => setView('list')}><Icon name="tasks" size={14} /> Lista</button>
-    <button class:on={view === 'board'} onclick={() => setView('board')}><Icon name="dashboard" size={14} /> Tablero</button>
+  {#if counts.late}<span class="late"><Icon name="alert" size={15} />{counts.late} {tt('vencida(s) recientemente sin entregar')}</span>{/if}
+  <div class="seg view" role="group" aria-label={tt('Vista')}>
+    <button class:on={view === 'list'} onclick={() => setView('list')}><Icon name="tasks" size={14} /> {tt('Lista')}</button>
+    <button class:on={view === 'board'} onclick={() => setView('board')}><Icon name="dashboard" size={14} /> {tt('Tablero')}</button>
   </div>
 </div>
 <div class="bar">
-  <input type="search" placeholder="Buscar tarea o asignatura…" bind:value={q} aria-label="Buscar" />
-  <select bind:value={courseId} aria-label="Asignatura"><option value="">Todas las asignaturas</option>{#each courses as [id, n]}<option value={String(id)}>{n}</option>{/each}</select>
-  {#if view === 'list'}<select bind:value={sort} aria-label="Ordenar por"><option value="due">Orden: fecha límite</option><option value="priority">Orden: prioridad</option><option value="course">Orden: asignatura</option><option value="state">Orden: estado</option></select>{/if}
+  <input type="search" placeholder={tt('Buscar tarea o asignatura…')} bind:value={q} aria-label="Buscar" />
+  <select bind:value={courseId} aria-label="Asignatura"><option value="">{tt('Todas las asignaturas')}</option>{#each courses as [id, n]}<option value={String(id)}>{n}</option>{/each}</select>
+  {#if view === 'list'}<select bind:value={sort} aria-label={tt('Ordenar por')}><option value="due">{tt('Orden: fecha límite')}</option><option value="priority">{tt('Orden: prioridad')}</option><option value="course">{tt('Orden: asignatura')}</option><option value="state">{tt('Orden: estado')}</option></select>{/if}
 </div>
 
 {#if loaded && tasks.length === 0}
-  <div class="card empty"><span class="ico tone-blue"><Icon name="tasks" size={24} /></span><h2>No hay tareas guardadas</h2><p class="muted">Sincroniza en «Moodle / Conexión»: se leen las tareas de cada curso con su estado y fecha límite.</p></div>
+  <div class="card empty"><span class="ico tone-blue"><Icon name="tasks" size={24} /></span><h2>{tt('No hay tareas guardadas')}</h2><p class="muted">{tt('Sincroniza en «Moodle / Conexión»: se leen las tareas de cada curso con su estado y fecha límite.')}</p></div>
 {:else if view === 'list'}
-  {#if loaded && shown.length === 0}<p class="muted">Ninguna tarea con estos filtros.</p>{/if}
+  {#if loaded && shown.length === 0}<p class="muted">{tt('Ninguna tarea con estos filtros.')}</p>{/if}
   <ul class="list">
     {#each shown as t, i (t.id)}
       {@const si = stateInfo[t.state]}
       <li id="task-{t.id}" style="--i:{i}" class="task s-{si.tone}" class:open={openId === t.id} class:stale={stale(t)}>
         <div class="row">
-          <button class="star" title="Prioridad personal (clic para cambiar)" aria-label={`Prioridad ${t.priority} de 3`} onclick={() => flag(t, { priority: (t.priority + 1) % 4 })}>{'●'.repeat(t.priority)}{'○'.repeat(3 - t.priority)}</button>
+          <button class="star" title={tt('Prioridad personal (clic para cambiar)')} aria-label={`Prioridad ${t.priority} de 3`} onclick={() => flag(t, { priority: (t.priority + 1) % 4 })}>{'●'.repeat(t.priority)}{'○'.repeat(3 - t.priority)}</button>
           <button class="main" onclick={() => toggle(t)} aria-expanded={openId === t.id}>
             <span class="title">{t.favorite ? '★ ' : ''}{t.name}</span>
-            <span class="muted sub">{t.course_name}{t.section_position !== null ? ` · ${t.section_position === 0 ? 'General' : 'Tema ' + t.section_position}` : ''}</span>
+            <span class="muted sub">{t.course_name}{t.section_position !== null ? ` · ${t.section_position === 0 ? tt('General') : tt('Tema {n}', { n: t.section_position })}` : ''}</span>
           </button>
           <div class="due">
             <span>{t.state === 'sin_sincronizar' ? 'Sin datos de Moodle' : fmtDue(t.due_at)}</span>
-            {#if t.due_at && todoStates.includes(t.state)}<small class:warn={urgent(t)} class:bad={t.state === 'fuera_de_plazo'}>{urgent(t) ? 'Urgente · ' : ''}{fmtRemaining(t.seconds_to_due)}</small>{/if}
+            {#if t.due_at && todoStates.includes(t.state)}<small class:warn={urgent(t)} class:bad={t.state === 'fuera_de_plazo'}>{urgent(t) ? tt('Urgente') + ' · ' : ''}{fmtRemaining(t.seconds_to_due)}</small>{/if}
           </div>
           <span class="badge b-{si.tone}">{stale(t) ? 'Antigua · sin entregar' : si.label}</span>
-          {#if t.grade}<span class="grade" title="Calificación en Moodle">{t.grade}</span>{/if}
+          {#if t.grade}<span class="grade" title={tt('Calificación en Moodle')}>{t.grade}</span>{/if}
         </div>
         {#if openId === t.id}<div class="detail"><TaskDetail {t} onChange={load} /></div>{/if}
       </li>
@@ -220,9 +221,9 @@
   </ul>
 {:else}
   <p class="hint muted small">
-    {#if by === 'priority'}Arrastra las tarjetas entre columnas para cambiar tu prioridad personal (se guarda solo en tu equipo).
-    {:else if by === 'state'}Arrastra las tareas sin entregar entre «Por hacer», «En curso» y «Hechas» para organizarte: se guarda solo en tu equipo y no cambia nada en Moodle. Entregadas y Evaluadas vienen de Moodle y no se mueven.
-    {:else}Las columnas reflejan la asignatura; para mover tarjetas usa el tablero por estado o por prioridad. Pulsa una para ver su detalle.{/if}
+    {#if by === 'priority'}{tt('Arrastra las tarjetas entre columnas para cambiar tu prioridad personal (se guarda solo en tu equipo).')}
+    {:else if by === 'state'}{tt('Arrastra las tareas sin entregar entre «Por hacer», «En curso» y «Hechas» para organizarte: se guarda solo en tu equipo y no cambia nada en Moodle. Entregadas y Evaluadas vienen de Moodle y no se mueven.')}
+    {:else}{tt('Las columnas reflejan la asignatura; para mover tarjetas usa el tablero por estado o por prioridad. Pulsa una para ver su detalle.')}{/if}
     · {boardTotal} {boardTotal === 1 ? 'tarea' : 'tareas'}
   </p>
   <div class="board" class:dragging={!!drag} role="list">
@@ -253,6 +254,7 @@
 {#if view === 'board' && openTask}
   <TaskDrawer task={openTask} onClose={() => (openId = null)} onChange={load} />
 {/if}
+
 
 <style>
   .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }

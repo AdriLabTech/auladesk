@@ -96,6 +96,7 @@ pub struct EventBase {
     pub id: i64, pub source: String, pub activity_id: Option<i64>, pub kind: String, pub title: String, pub notes: Option<String>,
     pub starts_at: i64, pub ends_at: Option<i64>, pub all_day: i64, pub cancelled_at: Option<i64>, pub remind_min: Option<i64>,
     pub course_name: Option<String>, pub submission_status: Option<String>, pub grading_status: Option<String>, pub due_at: Option<i64>, pub synced: Option<i64>,
+    pub account_id: Option<i64>, pub student_id: Option<i64>, pub student_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -104,8 +105,9 @@ pub struct EventRow { #[serde(flatten)] pub base: EventBase, pub activity_state:
 pub async fn list(pool: &SqlitePool, from: i64, to: i64) -> AppResult<Vec<EventRow>> {
     let rows: Vec<EventBase> = sqlx::query_as(
         "SELECT e.id, e.source, e.activity_id, e.kind, e.title, e.notes, e.starts_at, e.ends_at, e.all_day, e.cancelled_at, e.remind_min,
-                c.fullname AS course_name, x.submission_status, x.grading_status, a.due_at, x.activity_id AS synced
-         FROM calendar_event e LEFT JOIN activity a ON a.id=e.activity_id LEFT JOIN course c ON c.id=a.course_id LEFT JOIN assignment x ON x.activity_id=a.id
+                c.fullname AS course_name, x.submission_status, x.grading_status, a.due_at, x.activity_id AS synced,
+                e.account_id, e.student_id, s.display_name AS student_name
+         FROM calendar_event e LEFT JOIN activity a ON a.id=e.activity_id LEFT JOIN course c ON c.id=a.course_id LEFT JOIN assignment x ON x.activity_id=a.id LEFT JOIN student s ON s.id=e.student_id
          WHERE e.starts_at < ?2 AND coalesce(e.ends_at, e.starts_at) >= ?1 ORDER BY e.starts_at, e.id").bind(from).bind(to).fetch_all(pool).await?;
     let t = now();
     Ok(rows.into_iter().map(|b| {

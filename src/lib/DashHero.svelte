@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t as tt } from './i18n.svelte';
   import { greeting, fmtAgo } from './format';
   import { account, initials } from './account.svelte';
   import { hero, fill } from './herocfg.svelte';
@@ -18,33 +19,34 @@
 <section class="hero" class:neutral={hero.tone === 'panel'} class:noring={!hero.ring}>
   <div class="hero-txt">
     {#if hero.date}<span class="eyebrow">{today}</span>{/if}
-    {#if hero.account && account.name}<span class="acct" title="Cuenta de Moodle con la sesión iniciada"><i>{initials(account.name)}</i>Sesión de <b>{account.name}</b>{#if account.userId}<small>ID {account.userId}</small>{/if}</span>{/if}
+    {#if hero.account && account.name}<span class="acct" title={tt('Cuenta de Moodle con la sesión iniciada')}><i>{initials(account.name)}</i>{tt('Sesión de')} <b>{account.name}</b>{#if account.userId}<small>ID {account.userId}</small>{/if}</span>{/if}
     <h1>{title}</h1>
     {#if customSub}<p class="lead">{customSub}</p>
     {:else if hero.summary}
       <p class="lead">
-        {#if todo === 0}No tienes tareas pendientes. Buen momento para adelantar trabajo o repasar.
+        {#if todo === 0}{tt('No tienes tareas pendientes. Buen momento para adelantar trabajo o repasar.')}
         {:else}
-          Tienes <b>{todo}</b> {todo === 1 ? 'tarea por hacer' : 'tareas por hacer'}{#if overdue}, <b class="bad">{overdue}</b> vencida{overdue === 1 ? '' : 's'} recientemente{/if}.
-          {#if topName}Lo primero: <b>{topName}</b>{#if topReason}, {topReason}{/if}.{/if}
+          {tt('Tienes')} <b>{todo}</b> {tt(todo === 1 ? 'tarea por hacer' : 'tareas por hacer')}{#if overdue}, <b class="bad">{overdue}</b> {tt(overdue === 1 ? 'vencida recientemente' : 'vencidas recientemente')}{/if}.
+          {#if topName}{tt('Lo primero:')} <b>{topName}</b>{#if topReason}, {topReason}{/if}.{/if}
         {/if}
       </p>
     {/if}
     {#if hero.actions}
       <div class="hero-actions">
-        <button class="btn primary" onclick={onTasks} disabled={preview}><Icon name="tasks" size={16} /> Ver tareas</button>
-        <button class="btn" onclick={onSync} disabled={preview}><Icon name="refresh" size={16} /> Sincronizar</button>
-        <span class="synced"><i class="pulse-dot" style="--t: {lastSyncAt ? 'var(--ok)' : 'var(--warn)'}"></i>Sincronizado {fmtAgo(lastSyncAt)}</span>
+        <button class="btn primary" onclick={onTasks} disabled={preview}><Icon name="tasks" size={16} /> {tt('Ver tareas')}</button>
+        <button class="btn" onclick={onSync} disabled={preview}><Icon name="refresh" size={16} /> {tt('Sincronizar')}</button>
+        <span class="synced"><i class="pulse-dot" style="--t: {lastSyncAt ? 'var(--ok)' : 'var(--warn)'}"></i>{tt('Sincronizado')} {fmtAgo(lastSyncAt)}</span>
       </div>
     {/if}
   </div>
   {#if hero.ring}
     <div class="ring" role="img" aria-label={`Progreso: ${pct}% de las tareas ya entregadas`}>
       <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r={R} class="track" /><circle cx="60" cy="60" r={R} class="bar" stroke-dasharray={C} stroke-dashoffset={ready ? C * (1 - pct / 100) : C} /></svg>
-      <div class="ring-in"><strong><Counter value={pct} suffix="%" /></strong><small>entregado</small></div>
+      <div class="ring-in"><strong><Counter value={pct} suffix="%" /></strong><small>{tt('entregado')}</small></div>
     </div>
   {/if}
 </section>
+
 
 <style>
   .hero { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 30px 34px; border-radius: var(--radius-lg); background: var(--accent); color: var(--accent-fg); position: relative; overflow: hidden; --fg: var(--accent-fg); --bgc: var(--accent); }

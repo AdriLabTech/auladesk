@@ -1,4 +1,4 @@
-# INTEGRATION_DESIGN — AulaDesk: Moodle + iPasen (+ iSéneca no disponible)
+# INTEGRATION_DESIGN — AulaDesk: Moodle + Familias (iPasen) (+ Docentes/iSéneca aparcado)
 
 Fase 2. Fecha: 2026-11-09. Parte de `PROJECT_AUDIT.md` e `INTEGRATION_RESEARCH.md`. **Es un diseño: no hay cambios de código del núcleo todavía y necesita aprobación antes de la Fase 3.**
 
@@ -12,6 +12,12 @@ Fase 2. Fecha: 2026-11-09. Parte de `PROJECT_AUDIT.md` e `INTEGRATION_RESEARCH.m
 | **BD cifrada con SQLCipher** (hecho en esta rama, ver `docs/SQLCIPHER.md`). Cierra la decisión pendiente de cifrado. | Adrián, 2026-11-09 |
 | **Nombres públicos**: PASEN/iPasen → **«Familias»**, iSéneca → **«Docentes»** en UI y código visible; PASEN/Séneca solo como texto descriptivo en documentación. Ver `docs/LEGAL.md`. | Adrián, 2026-11-09 |
 | Sin renombrar nada heredado (`moodledesk.db`, servicio de llavero `moodledesk`). | auditoría |
+
+## 0 bis. Decisiones del 2026-11-11 (implementadas en la rama `integracion-familias`)
+- Familias se lee con un **WebView propio y oculto** (como Moodle), extrayendo el DOM, y se implementarán **todas las opciones que el portal permita**, con interfaz propia. Las de escritura (justificar faltas, pedir tutoría, mensajes) existen como capa con confirmación explícita y registro, pero **no llegan al portal** hasta que haya una receta verificada contra el DOM real.
+- **iSéneca/Docentes aparcado**: no hay forma de obtener su DOM; solo una entrada informativa «no disponible».
+- Implementado: H0 (tests de caracterización + test de migración sobre BD 0006 con datos) · H1 (cuentas, contrato `Integration`) · H2 (llavero y estado de sesión por plataforma) · H3 (calendario multi-origen, avisos con origen y dedupe) · H4 (webview de Familias) · H5 (contrato de datos, persistencia, recetas; **extractores pendientes del reconocimiento**) · H6 (UI por grupos, alumno activo, filtros) · H7 (docs, límites de frecuencia) · H8 (acciones de escritura con confirmación).
+- Desviaciones del diseño original: sqlx envuelve cada migración de SQLite en una transacción, por lo que `0008` conserva los avisos con una tabla auxiliar en vez de apagar `foreign_keys`; los nombres de plataforma en BD son `moodle|familias|docentes`; `calendar_event` mantiene `moodle_event_id` para Moodle y usa `external_id` para el resto.
 
 ## 1. Principios
 1. Moodle no cambia de comportamiento: cada paso del núcleo se hace con los tests Moodle en verde y con migraciones sobre copia de la BD.

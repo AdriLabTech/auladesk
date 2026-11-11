@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-sync"
+description = "Enables the familias_sync command without any pre-configured scope."
+commands.allow = ["familias_sync"]
+
+[[permission]]
+identifier = "deny-familias-sync"
+description = "Denies the familias_sync command without any pre-configured scope."
+commands.deny = ["familias_sync"]

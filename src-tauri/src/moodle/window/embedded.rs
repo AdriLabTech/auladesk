@@ -1,4 +1,4 @@
-//! Linux: Moodle vive en un webview hijo de la ventana principal, no en una segunda ventana.
+//! Linux: Moodle (y Familias) viven en un webview hijo de la ventana principal, no en una segunda ventana.
 //!
 //! WebKit no pinta ni ejecuta bien las páginas de Moodle si su widget no está mapeado (visibilityState «hidden»,
 //! requestAnimationFrame parado, ancho 0), y una ventana extra que aparece y desaparece se nota. Aquí el webview
@@ -8,6 +8,7 @@
 use super::*;
 use gtk::prelude::*;
 use std::{cell::RefCell, rc::Rc};
+use std::collections::HashMap;
 use tauri::{LogicalPosition, LogicalSize, WebviewBuilder};
 
 const HIDDEN_W: i32 = 1100;
@@ -47,16 +48,24 @@ impl Ui {
     }
 }
 
-thread_local! { static UI: RefCell<Option<Ui>> = const { RefCell::new(None) }; }
+thread_local! { static UIS: RefCell<HashMap<String, Ui>> = RefCell::new(HashMap::new()); }
 
-pub fn set_visible(app: &AppHandle, visible: bool) {
-    let _ = app.run_on_main_thread(move || UI.with(|u| { if let Some(ui) = u.borrow().as_ref() { ui.apply(visible); } }));
+/// Muestra u oculta el webview `label`. Solo uno puede estar a pantalla completa: al mostrar uno, los demás se ocultan.
+pub fn set_visible(app: &AppHandle, label: &str, visible: bool) {
+    let label = label.to_string();
+    let _ = app.run_on_main_thread(move || UIS.with(|u| {
+        let map = u.borrow();
+        if visible { for (l, ui) in map.iter() { if *l != label { ui.apply(false); } } }
+        if let Some(ui) = map.get(&label) { ui.apply(visible); }
+    }));
 }
 
 /// Reubica el webview de Moodle (ya creado como hijo) en el contenedor recortado. Se ejecuta en el hilo principal.
-fn mount(moodle: gtk::Widget) -> Result<(), String> {
-    let vbox = moodle.parent().and_then(|p| p.downcast::<gtk::Box>().ok()).ok_or("el webview de Moodle no está en la caja de la ventana")?;
-    let app = vbox.children().into_iter().find(|c| *c != moodle).ok_or("no se encontró el webview de la aplicación")?;
+fn mount(label: &str, title: &str, moodle: gtk::Widget) -> Result<(), String> {
+    let vbox = moodle.parent().and_then(|p| p.downcast::<gtk::Box>().ok()).ok_or("el webview no está en la caja de la ventana")?;
+    // El webview de la aplicación es el único hijo que no es una barra (Box) ni un contenedor recortado (Layout) de otro webview montado antes.
+    let app = vbox.children().into_iter().find(|c| *c != moodle && c.downcast_ref::<gtk::Box>().is_none() && c.downcast_ref::<gtk::Layout>().is_none())
+        .ok_or("no se encontró el webview de la aplicación")?;
     vbox.remove(&moodle);
 
     let fixed = gtk::Layout::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
@@ -67,7 +76,7 @@ fn mount(moodle: gtk::Widget) -> Result<(), String> {
     bar.set_margin(6);
     let back = gtk::Button::with_label("← Volver a AulaDesk");
     bar.pack_start(&back, false, false, 0);
-    bar.pack_start(&gtk::Label::new(Some("Moodle")), false, false, 6);
+    bar.pack_start(&gtk::Label::new(Some(title)), false, false, 6);
     for c in bar.children() { c.show_all(); }
     bar.set_no_show_all(true); // que un show_all() de la ventana no la muestre; apply() la enseña con show()
 
@@ -87,20 +96,32 @@ fn mount(moodle: gtk::Widget) -> Result<(), String> {
     let ui2 = ui.clone();
     back.connect_clicked(move |_| ui2.apply(false));
     ui.apply(false);
-    UI.with(|u| *u.borrow_mut() = Some(ui));
+    UIS.with(|u| { u.borrow_mut().insert(label.to_string(), ui); });
     Ok(())
+}
+
+/// Crea el webview como hijo de la ventana principal y lo monta oculto (1×1, transparente). Lo usan Moodle y Familias.
+pub async fn attach(app: &AppHandle, builder: WebviewBuilder<tauri::Wry>, label: &str, title: &str) -> AppResult<Webview> {
+    let main = app.get_window("main").ok_or_else(|| AppError::Other("no hay ventana principal".into()))?;
+    let wv = main.add_child(builder, LogicalPosition::new(0.0, 0.0), LogicalSize::new(HIDDEN_W as f64, HIDDEN_H as f64))
+        .map_err(|e| AppError::Other(format!("no se pudo abrir {title}: {e}")))?;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let (l, t) = (label.to_string(), title.to_string());
+    wv.with_webview(move |pw| { let _ = tx.send(mount(&l, &t, pw.inner().upcast::<gtk::Widget>())); })
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    rx.await.map_err(|e| AppError::Other(e.to_string()))?.map_err(AppError::Other)?;
+    Ok(wv)
 }
 
 pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) -> AppResult<()> {
     if get(app).is_some() {
-        if visible { set_visible(app, true); }
+        if visible { set_visible(app, LABEL, true); }
         return Ok(());
     }
     let store = data_dir.join("webview");
     std::fs::create_dir_all(&store)?;
     let saved = saved_session(app).await;
     let initial = if saved.is_some() { Url::parse("about:blank").unwrap() } else { base_url() };
-    let main = app.get_window("main").ok_or_else(|| AppError::Other("no hay ventana principal".into()))?;
     let (emitter, dl_app) = (app.clone(), app.clone());
     let builder = WebviewBuilder::new(LABEL, WebviewUrl::External(initial))
         .data_directory(store)
@@ -111,14 +132,35 @@ pub async fn open(app: &AppHandle, data_dir: &std::path::Path, visible: bool) ->
         .on_download(move |_w, ev| handle_download(&dl_app, ev))
         .on_document_title_changed(|_w, t| handle_title(&t))
         .on_page_load(move |w, p| handle_load(&emitter, &w, &p));
-    let wv = main.add_child(builder, LogicalPosition::new(0.0, 0.0), LogicalSize::new(HIDDEN_W as f64, HIDDEN_H as f64))
-        .map_err(|e| AppError::Other(format!("no se pudo abrir Moodle: {e}")))?;
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    wv.with_webview(move |pw| { let _ = tx.send(mount(pw.inner().upcast::<gtk::Widget>())); })
-        .map_err(|e| AppError::Other(e.to_string()))?;
-    rx.await.map_err(|e| AppError::Other(e.to_string()))?.map_err(AppError::Other)?;
+    let wv = attach(app, builder, LABEL, "Moodle").await?;
     if let Some(cookies) = saved { restore_session(&wv, &cookies)?; }
-    if visible { set_visible(app, true); }
+    if visible { set_visible(app, LABEL, true); }
     tracing::info!("webview de Moodle creado dentro de la ventana principal");
     Ok(())
+}
+
+/// Ventana oculta extra de solo lectura (cursos y tareas en paralelo). Comparte el almacén de cookies con la principal.
+pub async fn open_worker(app: &AppHandle, data_dir: &std::path::Path, i: usize) -> AppResult<Webview> {
+    let label = worker_label(i);
+    if let Some(w) = app.get_webview(&label) { return Ok(w); }
+    let store = data_dir.join("webview");
+    let emitter = app.clone();
+    let builder = WebviewBuilder::new(&label, WebviewUrl::External(Url::parse("about:blank").unwrap()))
+        .data_directory(store)
+        .initialization_script(BRIDGE)
+        .disable_drag_drop_handler()
+        .on_navigation(handle_navigation)
+        .on_download(|_w, _ev| false) // las descargas solo las gestiona la ventana principal
+        .on_document_title_changed(|_w, t| handle_title(&t))
+        .on_page_load(move |w, p| handle_load(&emitter, &w, &p));
+    attach(app, builder, &label, "Moodle (lectura)").await
+}
+
+/// Cierra una ventana de lectura y retira su contenedor GTK.
+pub fn close_worker(app: &AppHandle, i: usize) {
+    let label = worker_label(i);
+    if let Some(w) = app.get_webview(&label) { let _ = w.close(); }
+    let _ = app.run_on_main_thread(move || UIS.with(|u| {
+        if let Some(ui) = u.borrow_mut().remove(&label) { ui.vbox.remove(&ui.bar); ui.vbox.remove(&ui.fixed); }
+    }));
 }

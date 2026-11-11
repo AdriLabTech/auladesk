@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-action-cancel"
+description = "Enables the familias_action_cancel command without any pre-configured scope."
+commands.allow = ["familias_action_cancel"]
+
+[[permission]]
+identifier = "deny-familias-action-cancel"
+description = "Denies the familias_action_cancel command without any pre-configured scope."
+commands.deny = ["familias_action_cancel"]

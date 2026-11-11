@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-pause"
+description = "Enables the familias_pause command without any pre-configured scope."
+commands.allow = ["familias_pause"]
+
+[[permission]]
+identifier = "deny-familias-pause"
+description = "Denies the familias_pause command without any pre-configured scope."
+commands.deny = ["familias_pause"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-familias-actions"
+description = "Enables the familias_actions command without any pre-configured scope."
+commands.allow = ["familias_actions"]
+
+[[permission]]
+identifier = "deny-familias-actions"
+description = "Denies the familias_actions command without any pre-configured scope."
+commands.deny = ["familias_actions"]
