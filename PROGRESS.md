@@ -1,7 +1,7 @@
 > Diario de desarrollo (primera persona, en orden cronológico). Las pruebas contra Moodle se hicieron con la cuenta del autor; no se incluyen datos personales.
 
 # PROGRESS
-**Fase actual:** 5 completada y verificada en lo esencial; 6 con backend hecho y probado (59 tests) pero SIN interfaz; 7 sin empezar. Actualizado 2026-11-07. Sesión persistente hecha. Actualizado 2026-11-07.
+**Estado actual (2026-11-12): versión 0.3.1.** Moodle (fases 0–6), cifrado de la BD, copia en carpeta sincronizada, entregas desde la app, integración de Familias con datos reales y sincronización conjunta están hechos y probados en Linux (126 tests Rust, 29 de interfaz, svelte-check sin errores). La lista de lo no verificado está en cada sección y resumida en el README. Las secciones siguientes son el diario cronológico: lo antiguo se conserva como se escribió.
 
 ## Hecho (verificado)
 - Proyecto Tauri 2.12 + Svelte 5 compila (`npm run build`, `svelte-check` 0 errores, `tauri build --debug --no-bundle`).

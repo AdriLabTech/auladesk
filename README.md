@@ -1,12 +1,12 @@
 # AulaDesk
 
-Cliente de escritorio, **personal y de solo lectura**, para plataformas [Moodle](https://moodle.org): reúne tus tareas, fechas límite, archivos y avisos en una aplicación local rápida, y te ayuda a **preparar y comprobar entregas sin enviar nada por ti**.
+Cliente de escritorio y **personal** para plataformas [Moodle](https://moodle.org) y para el portal de familias del centro: reúne tareas, fechas límite, archivos, calificaciones, faltas y avisos en una aplicación local rápida, y te ayuda a **preparar y comprobar entregas sin enviar nada por ti**. Lo único que puede enviar es tu entrega, con confirmación explícita.
 
 > AulaDesk es un proyecto independiente. **No está afiliado, patrocinado ni respaldado por Moodle Pty Ltd, Moodle HQ ni la Junta de Andalucía.** «Moodle» es una marca de sus titulares.
 
 ![Dashboard](docs/img/dashboard.png)
 
-*Capturas con datos de ejemplo (nombre y tareas ficticios).*
+*Capturas de la versión 0.3.1 con datos de ejemplo (nombres, alumnado, centro y tareas ficticios).*
 
 ## Qué hace
 
@@ -19,7 +19,8 @@ Cliente de escritorio, **personal y de solo lectura**, para plataformas [Moodle]
 - **Sincronización automática** cada 10 min–12 h con avisos de tareas nuevas, cambios de fecha y notas; con bandeja del sistema para seguir en segundo plano.
 - **Cartel de bienvenida** del Dashboard totalmente personalizable y animación de bienvenida al iniciar sesión.
 - **Calendario y avisos**: eventos derivados de las fechas reales, recordatorios configurables (también con la app cerrada mediante un servicio de usuario opcional).
-- **Familias (PASEN/iPasen)**: alumnado, calificaciones, faltas y comunicaciones del portal, de solo lectura y con tu propia sesión (sin guardar contraseña); la sesión se conserva y se mantiene viva mientras la app está abierta.
+- **Familias (PASEN/iPasen)**: alumnado, calificaciones, faltas y retrasos y comunicaciones del portal, por alumno y con tu propia sesión (sin guardar contraseña); la sesión se conserva y se mantiene viva mientras la app está abierta. Las acciones de escritura (justificar una falta, pedir tutoría, mensaje) exigen confirmación explícita y quedan «no disponibles» mientras no haya una receta verificada contra el portal.
+- **Base de datos cifrada** con SQLCipher (clave en el llavero del sistema) y **copia opcional en una carpeta sincronizada** (Google Drive para escritorio, OneDrive, Dropbox…).
 - **Sincronización rápida y opcional al iniciar**: Moodle lee sin renderizar y solo relee lo que puede haber cambiado; Moodle y Familias se sincronizan a la vez.
 - **Apariencia y accesibilidad**: 18 temas (algunos animados), efectos con ecualizador real (Linux), pantallas de bienvenida, español/inglés, alto contraste, densidad y tamaño; paleta de comandos `Ctrl+K`.
 
@@ -30,6 +31,11 @@ Cliente de escritorio, **personal y de solo lectura**, para plataformas [Moodle]
 ### Entregar desde la app (beta) y visor integrado
 ![Entrega](docs/img/entrega.png)
 ![Visor](docs/img/visor.png)
+
+### Familias
+![Resumen del alumno](docs/img/familias-resumen.png)
+![Calificaciones](docs/img/familias-calificaciones.png)
+![Faltas y retrasos](docs/img/familias-faltas.png)
 
 ### Temas y personalización
 ![Temas](docs/img/temas.png)
@@ -44,7 +50,7 @@ Cliente de escritorio, **personal y de solo lectura**, para plataformas [Moodle]
 
 ## Estado y límites
 
-Proyecto personal en desarrollo (`v0.1`), **desarrollado y probado contra una instancia concreta** (Moodle 5.x de la Junta de Andalucía, tema «moove»): la URL base y los selectores están fijados en ese entorno (`src-tauri/src/moodle/`, `src-tauri/selectors/bridge.js`). Adaptarlo a otra instalación exige tocar esas constantes y revalidar los selectores. Lo verificado y lo **no** verificado está listado con honestidad en [`PROGRESS.md`](PROGRESS.md).
+Proyecto personal en desarrollo (`v0.3.1`), **desarrollado y probado contra instancias concretas** (Moodle 5.x de la Junta de Andalucía, tema «moove», y su portal de familias): las URL base y los selectores están fijados en ese entorno (`src-tauri/src/moodle/`, `src-tauri/src/familias/`, `src-tauri/selectors/`). Adaptarlo a otra instalación exige tocar esas constantes y revalidar los selectores. En Familias, la tabla de notas solo se ha visto vacía (sin datos reales) y el portal solo muestra el perfil activo de la cuenta. Lo verificado y lo **no** verificado está listado con honestidad en [`PROGRESS.md`](PROGRESS.md).
 
 Probado en Linux (Arch, Hyprland/Wayland). **Windows y macOS: la configuración de compilación está preparada pero no se ha probado**; allí las notificaciones de escritorio y el servicio en segundo plano (que usan `notify-send` y `systemd`) no están disponibles todavía.
 
@@ -73,7 +79,8 @@ Requisitos: Rust estable, Node.js 20+, dependencias de Tauri 2 para Linux (WebKi
 ```bash
 npm install
 npm run check                      # tipos de Svelte
-(cd src-tauri && cargo test --lib) # 65 pruebas
+npm test                           # 29 pruebas de interfaz (temas, i18n, loader)
+(cd src-tauri && cargo test --lib) # 126 pruebas
 npx tauri build --debug --no-bundle
 ./src-tauri/target/debug/auladesk
 ```
@@ -84,7 +91,7 @@ Variables de desarrollo: `AULADESK_DATA_DIR` (carpeta de datos alternativa, úti
 
 ## Arquitectura
 
-Tauri 2 (Rust) + Svelte 5 + SQLite. Resumen en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); base de datos en [`docs/DATABASE.md`](docs/DATABASE.md); integración con Moodle en [`docs/MOODLE_INTEGRATION.md`](docs/MOODLE_INTEGRATION.md).
+Tauri 2 (Rust) + Svelte 5 + SQLite cifrada (SQLCipher). Resumen en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); base de datos en [`docs/DATABASE.md`](docs/DATABASE.md); integración con Moodle en [`docs/MOODLE_INTEGRATION.md`](docs/MOODLE_INTEGRATION.md).
 
 ## Licencia
 
